@@ -215,7 +215,7 @@ function readModbusFormatValue(
   }
 }
 
-function readModbus(
+export function readModbus(
   register: number,
   registerType: ModbusRegisterType,
   format: ModbusFormat,

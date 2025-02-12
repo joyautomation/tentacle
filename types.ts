@@ -2,9 +2,19 @@ import { ModbusSourceParams } from "./modbus/types.ts";
 import { OpcuaSourceParams } from "./opcua/types.ts";
 
 export type PlcTask = {
+  name: string;
   description: string;
   scanRate: number;
   program: string;
+};
+
+export type PlcTaskRuntime = PlcTask & {
+  interval: number;
+  metrics: { waitTime: number; executeTime: number };
+  error: {
+    message: string | null;
+    stack: string | null;
+  };
 };
 
 export type MqttConnection = {
@@ -76,9 +86,14 @@ export type VariableSource = {
 
 export type Variable = {
   id: string;
-  datatype: string;
+  datatype: "boolean" | "number" | "string" | "object";
   description: string;
   default: string | number | boolean;
   persistent: boolean;
+  deadband?: {
+    maxTime: number;
+    value: number;
+  };
+  publishRate?: number;
   source?: VariableSource;
 };
