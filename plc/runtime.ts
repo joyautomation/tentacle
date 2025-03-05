@@ -62,15 +62,16 @@ export async function createDefaultFiles() {
   const files = [
     {
       path: "variables.ts",
-      content:
-        `import { variables as defaultVariables } from "./variables/default.ts";
+      content: `import { variables as defaultVariables } from "./variables/default.ts";
 export const variables = {...defaultVariables}`,
     },
     {
       path: "variables/default.ts",
-      content: `export const variables = ${
-        JSON.stringify(defaultVariables, null, 2)
-      }`,
+      content: `export const variables = ${JSON.stringify(
+        defaultVariables,
+        null,
+        2
+      )}`,
     },
     {
       path: "program/main.ts",
@@ -78,27 +79,29 @@ export const variables = {...defaultVariables}`,
     },
     {
       path: "config.ts",
-      content: `export const config = ${
-        JSON.stringify(defaultConfig, null, 2)
-      }`,
+      content: `export const config = ${JSON.stringify(
+        defaultConfig,
+        null,
+        2
+      )}`,
     },
   ];
-  await Promise.all(files.map((file) => {
-    const path = join(Deno.cwd(), "development", file.path);
-    const pathDir = path.substring(0, path.lastIndexOf("/"));
-    Deno.mkdirSync(pathDir, { recursive: true });
-    return Deno.writeTextFile(
-      path,
-      file.content,
-      { createNew: true },
-    ).catch((error) => {
-      if (error.name === "AlreadyExists") {
-        log.info(`${path} already exists`);
-      } else {
-        log.error(`Error creating ${path}: ${error.trace}`);
-      }
-    });
-  }));
+  await Promise.all(
+    files.map((file) => {
+      const path = join(Deno.cwd(), "development", file.path);
+      const pathDir = path.substring(0, path.lastIndexOf("/"));
+      Deno.mkdirSync(pathDir, { recursive: true });
+      return Deno.writeTextFile(path, file.content, { createNew: true }).catch(
+        (error) => {
+          if (error.name === "AlreadyExists") {
+            log.info(`${path} already exists`);
+          } else {
+            log.error(`Error creating ${path}: ${error.trace}`);
+          }
+        }
+      );
+    })
+  );
 }
 
 export async function updateRuntime(): Promise<Result<void, string>> {
@@ -112,26 +115,22 @@ export async function updateRuntime(): Promise<Result<void, string>> {
     join(Deno.cwd(), "runtime"),
     {
       overwrite: true,
-    },
+    }
   );
   log.info("Runtime updated.");
   return success();
 }
 
-export async function getRuntimeConfig(): Promise<
-  Result<Plc, string>
-> {
+export async function getRuntimeConfig(): Promise<Result<Plc, string>> {
   const result = await validate("runtime");
   if (!result.success) return failure(result.error);
   log.info("Runtime is valid.");
   const { config } = await importFresh<{ config: PlcConfig }>(
-    join(Deno.cwd(), "runtime", "config.ts"),
+    join(Deno.cwd(), "runtime", "config.ts")
   );
-  const { variables } = await importFresh<
-    { variables: Record<string, Variable> }
-  >(
-    join(Deno.cwd(), "runtime", "variables.ts"),
-  );
+  const { variables } = await importFresh<{
+    variables: Record<string, Variable>;
+  }>(join(Deno.cwd(), "runtime", "variables.ts"));
   return success({
     config,
     variables: await createVariables(variables),
@@ -152,38 +151,31 @@ function getPlcSummary(plc: Plc) {
     ...configCounts,
     variables: Object.keys(plc.variables).length,
   };
-  return `${
-    Object.entries(summary).map(([key, value], index, array) => {
+  return `${Object.entries(summary)
+    .map(([key, value], index, array) => {
       const singularKey = value === 1 ? key.replace(/s$/, "") : key;
       return index === array.length - 1
         ? `and ${value} ${singularKey}`
         : `${value} ${singularKey}`;
-    }).join(", ")
-  }`;
+    })
+    .join(", ")}`;
 }
 
-async function createTasks(
-  plc: Plc,
-): Promise<Plc> {
-  const resultTasks: [
-    string,
-    PlcTaskRuntime,
-  ][] = [];
+async function createTasks(plc: Plc): Promise<Plc> {
+  const resultTasks: [string, PlcTaskRuntime][] = [];
   for (const [key, task] of Object.entries(plc.config.tasks)) {
     const { program, scanRate } = task;
     const programPath = join(Deno.cwd(), "runtime", "program", `${program}.ts`);
-    const programModule = await importFresh<
-      {
-        main: (
-          { v }: {
-            v: Record<
-              string,
-              Variable & { value: boolean | number | string | null }
-            >;
-          },
-        ) => void;
-      }
-    >(programPath);
+    const programModule = await importFresh<{
+      main: ({
+        v,
+      }: {
+        v: Record<
+          string,
+          Variable & { value: boolean | number | string | null }
+        >;
+      }) => void;
+    }>(programPath);
     const { main } = programModule;
     const metrics = {
       waitTime: 0,
@@ -198,7 +190,7 @@ async function createTasks(
         markWaitEnd(key);
         markExecuteStart(key);
         try {
-          main({ v });
+          main(v);
         } catch (error) {
           log.error(`Task ${key} threw an error: ${error.stack}`);
           taskError.message = error.message;
@@ -210,9 +202,9 @@ async function createTasks(
           clearWaitMeasure(key);
           measureWait(key);
           metrics.waitTime =
-            performance.getEntriesByType("measure").find((measure) =>
-              measure.name === `${key}-wait`
-            )?.duration || 0;
+            performance
+              .getEntriesByType("measure")
+              .find((measure) => measure.name === `${key}-wait`)?.duration || 0;
         } catch (error) {
           if (error.message !== 'Cannot find mark: "main-wait-start".') {
             log.error(error);
@@ -222,15 +214,16 @@ async function createTasks(
         clearExecuteMeasure(key);
         measureExecute(key);
         metrics.executeTime =
-          performance.getEntriesByType("measure").find((measure) =>
-            measure.name === `${key}-execute`
-          )?.duration || 0;
+          performance
+            .getEntriesByType("measure")
+            .find((measure) => measure.name === `${key}-execute`)?.duration ||
+          0;
         pubsub.publish("plcUpdate", plc);
       },
       scanRate,
       {
         v: plc.variables,
-      },
+      }
     );
     resultTasks.push([
       key,
@@ -248,11 +241,11 @@ async function createTasks(
 }
 
 function createVariables(
-  variables: Record<string, Variable>,
+  variables: Record<string, Variable>
 ): Record<string, Variable & { value: boolean | number | string | null }> {
   const resultVariables: [
     string,
-    Variable & { value: boolean | number | string | null },
+    Variable & { value: boolean | number | string | null }
   ][] = [];
   for (const [key, variable] of Object.entries(variables)) {
     let value: boolean | number | string | null = variable.default || null;
@@ -281,7 +274,7 @@ export const startPlc = async (plc: Plc) => {
   const result = await updateRuntime();
   if (!result.success) {
     log.warn(
-      `Runtime was not updated: ${result.error}. Using existing runtime...`,
+      `Runtime was not updated: ${result.error}. Using existing runtime...`
     );
   }
   const runtime = await getRuntimeConfig().then((result) => {
@@ -304,7 +297,7 @@ export const stopPlc = (plc: Plc) => {
 };
 
 export function addPlcToSchema(
-  builder: ReturnType<typeof getBuilder<{ plc: Plc }>>,
+  builder: ReturnType<typeof getBuilder<{ plc: Plc }>>
 ) {
   const PlcRef = builder.objectRef<Plc>("Plc");
   const PlcConfigRef = builder.objectRef<PlcConfig>("PlcConfig");
@@ -312,15 +305,11 @@ export function addPlcToSchema(
     Variable & { value: boolean | number | string | null }
   >("PlcVariable");
   const PlcTaskConfigRef = builder.objectRef<PlcTask>("PlcTask");
-  const PlcTaskRuntimeRef = builder.objectRef<PlcTaskRuntime>(
-    "PlcTaskRuntime",
-  );
-  const PlcTaskMetricsRef = builder.objectRef<PlcTaskRuntime["metrics"]>(
-    "PlcTaskMetrics",
-  );
-  const PlcTaskErrorRef = builder.objectRef<PlcTaskRuntime["error"]>(
-    "PlcTaskError",
-  );
+  const PlcTaskRuntimeRef = builder.objectRef<PlcTaskRuntime>("PlcTaskRuntime");
+  const PlcTaskMetricsRef =
+    builder.objectRef<PlcTaskRuntime["metrics"]>("PlcTaskMetrics");
+  const PlcTaskErrorRef =
+    builder.objectRef<PlcTaskRuntime["error"]>("PlcTaskError");
 
   PlcConfigRef.implement({
     fields: (t) => ({
@@ -403,7 +392,8 @@ export function addPlcToSchema(
       resolve: (_, _args, context) => {
         return context.plc;
       },
-    }));
+    })
+  );
   builder.mutationField("restartPlc", (t) =>
     t.field({
       type: PlcRef,
@@ -412,11 +402,13 @@ export function addPlcToSchema(
         await startPlc(context.plc);
         return context.plc;
       },
-    }));
+    })
+  );
   builder.subscriptionField("plc", (t) =>
     t.field({
       type: PlcRef,
       subscribe: () => pubsub.subscribe("plcUpdate"),
       resolve: (payload) => payload,
-    }));
+    })
+  );
 }

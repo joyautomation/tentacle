@@ -5,7 +5,7 @@ import { Variable } from "./types.ts";
 import { TypeStr } from "npm:sparkplug-payload@1.0.3/sparkplugPayloadProto";
 
 export const variableTypeToSparkplugType = (
-  type: Variable["datatype"],
+  type: Variable["datatype"]
 ): TypeStr => {
   switch (type) {
     case "number":
@@ -18,7 +18,7 @@ export const variableTypeToSparkplugType = (
 };
 
 export const variablesToMetrics = (
-  variables: Record<string, Plc["variables"][number]>,
+  variables: Record<string, Plc["variables"][number]>
 ) => {
   return Object.entries(variables).reduce((acc, [key, variable]) => {
     acc[key] = {
@@ -32,14 +32,15 @@ export const variablesToMetrics = (
   }, {} as Record<string, SparkplugMetric>);
 };
 
-export async function createPlcMqtt(
-  plc: Plc,
-) {
-  const { config: { mqtt } } = plc;
+export async function createPlcMqtt(plc: Plc) {
+  const {
+    config: { mqtt },
+  } = plc;
   const resultMqtt: {
     [key: string]: ReturnType<typeof createNode>;
   } = {};
   for (const [key, config] of Object.entries(mqtt)) {
+    console.log(config);
     resultMqtt[key] = createNode({
       id: key,
       brokerUrl: config.serverUrl,
@@ -61,9 +62,7 @@ export async function createPlcMqtt(
   return plc;
 }
 
-export const updateMetricValues = (
-  plc: Plc,
-) => {
+export const updateMetricValues = (plc: Plc) => {
   for (const [key, variable] of Object.entries(plc.variables)) {
     for (const node of Object.values(plc.mqtt)) {
       const deviceId = Object.keys(node.devices)[0];
