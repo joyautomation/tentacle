@@ -3,7 +3,7 @@
     "dev": "deno run --watch main.ts"
   },
   "imports": {
-    "@joyautomation/conch": "jsr:@joyautomation/conch@^0.0.20",
+    "@joyautomation/conch": "jsr:@joyautomation/conch@^0.0.22",
     "@joyautomation/coral": "jsr:@joyautomation/coral@^0.0.12",
     "@std/assert": "jsr:@std/assert@1",
     "@std/cli": "jsr:@std/cli@^1.0.6",

@@ -1,7 +1,7 @@
 {
   "version": "4",
   "specifiers": {
-    "jsr:@joyautomation/conch@^0.0.20": "0.0.20",
+    "jsr:@joyautomation/conch@^0.0.22": "0.0.22",
     "jsr:@joyautomation/coral@^0.0.10": "0.0.10",
     "jsr:@joyautomation/coral@^0.0.12": "0.0.12",
     "jsr:@std/assert@1": "1.0.6",
@@ -16,17 +16,17 @@
     "jsr:@std/internal@^1.0.4": "1.0.4",
     "jsr:@std/path@^1.0.6": "1.0.6",
     "jsr:@std/testing@^1.0.3": "1.0.3",
-    "npm:@pothos/core@^4.2.0": "4.2.0_graphql@16.9.0",
+    "npm:@pothos/core@^4.2.0": "4.3.0_graphql@16.9.0",
     "npm:@types/node@*": "18.16.19",
-    "npm:graphql-scalars@^1.23.0": "1.23.0_graphql@16.9.0",
+    "npm:graphql-scalars@^1.23.0": "1.24.1_graphql@16.9.0",
     "npm:graphql-yoga@^5.7.0": "5.7.0_graphql@16.9.0",
     "npm:modbus-serial@^8.0.19": "8.0.19",
     "npm:pothos@^0.0.1": "0.0.1",
     "npm:ramda@~0.30.1": "0.30.1"
   },
   "jsr": {
-    "@joyautomation/conch@0.0.20": {
-      "integrity": "4fa239444113aa33a43666a78f281f4244ca84b0e9a11c5ef79884841ee7d46c",
+    "@joyautomation/conch@0.0.22": {
+      "integrity": "0eb2d4f4685a984e3f0fe647a23eebbdc0380a1174bed805810ebf8b51e12f75",
       "dependencies": [
         "jsr:@joyautomation/coral@^0.0.10",
         "jsr:@std/cli",
@@ -183,8 +183,8 @@
     "@kamilkisiela/fast-url-parser@1.1.4": {
       "integrity": "sha512-gbkePEBupNydxCelHCESvFSFM8XPh1Zs/OAVRW/rKpEqPAl5PbOM90Si8mv9bvnR53uPD2s/FiRxdvSejpRJew=="
     },
-    "@pothos/core@4.2.0_graphql@16.9.0": {
-      "integrity": "sha512-dEoQCaA/pCPg3MhjGCwBF1QRbtOPysXm4nivQQsq6OrOvC7pU+KJNVdBSwpi1ZtTLtd4wg+PCC8Js9GrCyh9sw==",
+    "@pothos/core@4.3.0_graphql@16.9.0": {
+      "integrity": "sha512-i4nyI8wSCjxdHUomqQ2K3FH0Glklomfv4tJNifQVU9lPtQKoKaS69VxGv+fru0HAZzb1eC1XPEPN3XPCYcvZ7Q==",
       "dependencies": [
         "graphql"
       ]
@@ -329,8 +329,8 @@
         "fast-decode-uri-component"
       ]
     },
-    "graphql-scalars@1.23.0_graphql@16.9.0": {
-      "integrity": "sha512-YTRNcwitkn8CqYcleKOx9IvedA8JIERn8BRq21nlKgOr4NEcTaWEG0sT+H92eF3ALTFbPgsqfft4cw+MGgv0Gg==",
+    "graphql-scalars@1.24.1_graphql@16.9.0": {
+      "integrity": "sha512-3L553TMPh3YpHQM4x9G4tXcyD+AX8QQOYA6tUn1nrNiWEXE0JfAnWdjoe3WGxRuGjnZrzvHDz62q8S+sSGXXwA==",
       "dependencies": [
         "graphql",
         "tslib"
@@ -509,7 +509,7 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@joyautomation/conch@^0.0.20",
+      "jsr:@joyautomation/conch@^0.0.22",
       "jsr:@joyautomation/coral@^0.0.12",
       "jsr:@std/assert@1",
       "jsr:@std/cli@^1.0.6",

@@ -1,10 +1,11 @@
+import { ArgDictionaryItem } from "https://jsr.io/@joyautomation/conch/0.0.22/cli.ts";
 import { ModbusSourceParams } from "./modbus/types.ts";
 import { OpcuaSourceParams } from "./opcua/types.ts";
 
 export type PlcTask = {
   description: string;
   scanRate: number;
-  program: string;
+  program: (variables: Record<string, RealtimeVariable>) => void;
 };
 
 export type MqttConnection = {
@@ -43,18 +44,11 @@ export type PlcModbusSource = PollingSource & {
 export type PlcOpcuaSource = PollingSource;
 
 export type PlcConfig = {
-  tasks: {
-    [key: string]: PlcTask;
-  };
-  mqtt: {
-    [key: string]: MqttConnection;
-  };
-  modbus: {
-    [key: string]: PlcModbusSource;
-  };
-  opcua: {
-    [key: string]: OpcuaSourceParams;
-  };
+  variables: Record<string, Variable>;
+  tasks: Record<string, PlcTask>;
+  mqtt: Record<string, MqttConnection>;
+  modbus: Record<string, PlcModbusSource>;
+  opcua: Record<string, PlcOpcuaSource>;
 };
 
 export type VariableSourceType =
@@ -81,4 +75,8 @@ export type Variable = {
   default: string | number | boolean;
   persistent: boolean;
   source?: VariableSource;
+};
+
+export type RealtimeVariable = Variable & {
+  value: string | number | boolean;
 };
