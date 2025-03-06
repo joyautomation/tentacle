@@ -1,12 +1,25 @@
-import { ArgDictionaryItem } from "https://jsr.io/@joyautomation/conch/0.0.22/cli.ts";
 import { ModbusSourceParams } from "./modbus/types.ts";
-import { OpcuaSourceParams } from "./opcua/types.ts";
+// import { OpcuaSourceParams } from "./opcua/types.ts";
 
 export type PlcTask = {
+  name: string;
   description: string;
   scanRate: number;
-  program: (variables: Record<string, RealtimeVariable>) => void;
+  program: (variables: VariablesRuntime) => void;
 };
+
+export type PlcTasks = Record<string, PlcTaskRuntime>;
+
+export type PlcTaskRuntime = PlcTask & {
+  interval: number;
+  metrics: { waitTime: number; executeTime: number };
+  error: {
+    message: string | null;
+    stack: string | null;
+  };
+};
+
+export type PlcTasksRuntime = Record<string, PlcTaskRuntime>;
 
 export type MqttConnection = {
   enabled: boolean;
@@ -44,11 +57,11 @@ export type PlcModbusSource = PollingSource & {
 export type PlcOpcuaSource = PollingSource;
 
 export type PlcConfig = {
-  variables: Record<string, Variable>;
   tasks: Record<string, PlcTask>;
   mqtt: Record<string, MqttConnection>;
   modbus: Record<string, PlcModbusSource>;
   opcua: Record<string, PlcOpcuaSource>;
+  variables: Record<string, Variable>;
 };
 
 export type VariableSourceType =
@@ -65,18 +78,27 @@ export type VariableSource = {
   default: string;
   rate: number;
   bidirectional: boolean;
-  params: ModbusSourceParams | OpcuaSourceParams;
+  params: ModbusSourceParams; // | OpcuaSourceParams;
 };
 
 export type Variable = {
   id: string;
-  datatype: string;
+  datatype: "boolean" | "number" | "string" | "object";
   description: string;
   default: string | number | boolean;
   persistent: boolean;
+  deadband?: {
+    maxTime: number;
+    value: number;
+  };
+  publishRate?: number;
   source?: VariableSource;
 };
 
-export type RealtimeVariable = Variable & {
-  value: string | number | boolean;
+export type Variables = Record<string, Variable>;
+
+export type VariableRuntime = Variable & {
+  value: boolean | number | string | null;
 };
+
+export type VariablesRuntime = Record<string, VariableRuntime>;
