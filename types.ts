@@ -5,7 +5,7 @@ export type PlcTask = {
   name: string;
   description: string;
   scanRate: number;
-  program: (variables: VariablesRuntime) => void;
+  program: (variables: VariablesRuntime) => Promise<void>;
 };
 
 export type PlcTasks = Record<string, PlcTaskRuntime>;
@@ -14,8 +14,9 @@ export type PlcTaskRuntime = PlcTask & {
   interval: number;
   metrics: { waitTime: number; executeTime: number };
   error: {
-    message: string | null;
-    stack: string | null;
+    error: string | null;
+    message?: string | null;
+    stack?: string | null;
   };
 };
 

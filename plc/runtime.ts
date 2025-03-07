@@ -1,5 +1,19 @@
-import { PlcConfig, VariablesRuntime } from "../types.ts";
-import { markExecuteEnd, markExecuteStart, markWaitEnd } from "./performance.ts";
+import { rTryAsync } from "https://jsr.io/@joyautomation/dark-matter/0.0.21/result/error.ts";
+import {
+  PlcConfig,
+  PlcTaskRuntime,
+  PlcTasksRuntime,
+  PlcTasksRuntime,
+  VariablesRuntime,
+} from "../types.ts";
+import {
+  clearWaitMeasure,
+  clearWaitMeasure,
+  markExecuteEnd,
+  markExecuteStart,
+  markWaitEnd,
+  measureWait,
+} from "./performance.ts";
 import { Plc } from "./types.ts";
 import {
   createErrorString,
@@ -8,6 +22,17 @@ import {
   isFail,
   Result,
 } from "@joyautomation/dark-matter";
+
+export function rTry<T, U>(
+  fn: (args: U) => T | Promise<T>,
+  args: U,
+): Result<T> {
+  try {
+    return createSuccess(fn(args));
+  } catch (e) {
+    return createFail(createErrorString(e));
+  }
+}
 
 export function createPlc(config: PlcConfig): Promise<Plc> {
   const plc: Plc = {
@@ -30,46 +55,63 @@ export function createVariables(config: PlcConfig): VariablesRuntime {
         ...variable,
         value: variable.default || null,
       },
-    ])
+    ]),
   );
 }
 
-export function rTry<T, U>(fn: (args: U) => T, args: U): Result<T> {
-  try {
-    return createSuccess(fn(args));
-  } catch (e) {
-    return createFail(createErrorString(e));
-  }
-}
-
 export const executeTask = (
-  task: (variables: VariablesRuntime) => Promise<void> | void,
-  variables: VariablesRuntime
-) => rTry(task, variables);
+  task: (variables: VariablesRuntime) => Promise<void>,
+  variables: VariablesRuntime,
+) => rTryAsync(() => task(variables));
 
-export function createTasks(plc: Plc): PlcTasksRuntime {
+export function createTasks(plc: Plc) {
   const { tasks } = plc.config;
   const { variables } = plc.runtime;
-  Object.entries(tasks).map(([key, task]) => [
-    key,
-    {
-      ...task,
-      interval: setInterval(
-        async (variables: VariablesRuntime) => {
-          markWaitEnd(key);
-          markExecuteStart(key);
-          const result = await executeTask(task.program, variables);
-          if (isFail(result) {
-            plc.runtime.tasks[key].error = result.error;
-          }
-          markExecuteEnd(key);
-          
+  plc.runtime.tasks = Object.fromEntries(
+    Object.entries(tasks).map(([key, task]) => {
+      plc.runtime.tasks[key].metrics = {
+        waitTime: 0,
+        executeTime: 0,
+      };
+      plc.runtime.tasks[key].error = {
+        error: null,
+        message: null,
+        stack: null,
+      };
+      return [
+        key,
+        {
+          ...task,
+          interval: setInterval(
+            async (variables: VariablesRuntime) => {
+              markWaitEnd(key);
+              markExecuteStart(key);
+              const result = await executeTask(task.program, variables);
+              if (isFail(result)) {
+                plc.runtime.tasks[key].error = {
+                  error: result.error,
+                  message: result.message,
+                  stack: result.stack,
+                };
+              }
+              markExecuteEnd(key);
+              const measureResult = rTry(() => {
+                clearWaitMeasure(key);
+                measureWait(key);
+                plc.runtime.tasks[key].metrics.waitTime = performance
+                  .getEntriesByType("measure")
+                  .find((measure) => measure.name === `${key}-wait`)
+                  ?.duration ||
+                  0;
+              });
+            },
+            task.scanRate,
+            plc.runtime.variables,
+          ),
         },
-        task.scanRate,
-        plc.runtime.variables
-      ),
-    },
-  ]);
+      ];
+    }),
+  );
 }
 
 export function startPlc(plc: Plc) {
