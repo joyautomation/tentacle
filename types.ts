@@ -1,16 +1,21 @@
-import { ModbusSourceParams } from "./modbus/types.ts";
+// import { ModbusSourceParams } from "./modbus/types.ts";
 // import { OpcuaSourceParams } from "./opcua/types.ts";
 
-export type PlcTask = {
+import { createNode } from "@joyautomation/synapse";
+
+export type PlcTask<V extends PlcVariables> = {
   name: string;
   description: string;
   scanRate: number;
-  program: (variables: VariablesRuntime) => Promise<void> | void;
+  program: (variables: PlcVariablesRuntime<V>) => Promise<void> | void;
 };
 
-export type PlcTasks = Record<string, PlcTaskRuntime>;
+export type PlcTasks<V extends PlcVariables> = Record<
+  string,
+  PlcTaskRuntime<V>
+>;
 
-export type PlcTaskRuntime = PlcTask & {
+export type PlcTaskRuntime<V extends PlcVariables> = PlcTask<V> & {
   interval: number;
   metrics: { waitTime: number; executeTime: number };
   error: {
@@ -20,7 +25,10 @@ export type PlcTaskRuntime = PlcTask & {
   };
 };
 
-export type PlcTasksRuntime = Record<string, PlcTaskRuntime>;
+export type PlcTasksRuntime<V extends PlcVariables> = Record<
+  string,
+  PlcTaskRuntime<V>
+>;
 
 export type MqttConnection = {
   enabled: boolean;
@@ -33,7 +41,7 @@ export type MqttConnection = {
   clientId: string;
   username: string;
   password: string;
-  vertion?: "spBv1.0";
+  version?: "spBv1.0";
 };
 
 export type PollingSource = {
@@ -57,57 +65,120 @@ export type PlcModbusSource = PollingSource & {
 
 export type PlcOpcuaSource = PollingSource;
 
-export type PlcConfig = {
-  tasks: Record<string, PlcTask>;
+export type PlcConfig<V extends PlcVariables> = {
+  tasks: Record<string, PlcTask<V>>;
   mqtt: Record<string, MqttConnection>;
   modbus: Record<string, PlcModbusSource>;
   opcua: Record<string, PlcOpcuaSource>;
-  variables: Record<string, Variable>;
+  variables: V;
 };
 
-export type VariableSourceType =
-  | "boolean"
-  | "number"
-  | "string"
-  | "array"
-  | "object";
-
-export type VariableSource = {
-  name: string;
-  type: VariableSourceType;
-  description: string;
-  default: string;
-  rate: number;
-  bidirectional: boolean;
-  params: ModbusSourceParams; // | OpcuaSourceParams;
-};
-
-export type Variable = {
-  id: string;
-  datatype: "boolean" | "number" | "string" | "object";
-  description: string;
-  default: string | number | boolean;
-  persistent: boolean;
-  deadband?: {
-    maxTime: number;
-    value: number;
-  };
-  publishRate?: number;
-  source?: VariableSource;
-};
-
-export type Variables = Record<string, Variable>;
-
-export type VariableRuntime = Variable & {
-  value: Variable["datatype"];
-};
-
-export type VariablesRuntime = Record<string, VariableRuntime>;
-
-export type Plc = {
-  config: PlcConfig;
+export type Plc<V extends PlcVariables> = {
+  config: PlcConfig<V>;
   runtime: {
-    variables: VariablesRuntime;
-    tasks: PlcTasksRuntime;
+    tasks: PlcTasksRuntime<V>;
+    variables: PlcVariablesRuntime<V>;
+    mqtt: Record<string, ReturnType<typeof createNode>>;
   };
 };
+
+export type PlcVariable =
+  | PlcVariableNumber
+  | PlcVariableBoolean
+  | PlcVariableString
+  | PlcVariableUdt<unknown>;
+
+export type PlcVariableRuntime =
+  | PlcVariableNumberRuntime
+  | PlcVariableBooleanRuntime
+  | PlcVariableStringRuntime
+  | PlcVariableUdtRuntime<unknown>;
+
+export type PlcVariableBase = {
+  id: string;
+  description: string;
+  persistent?: boolean;
+  publishRate?: number;
+};
+
+export type PlcVariableNumber = PlcVariableBase & {
+  datatype: "number";
+  default: number;
+};
+
+export type PlcVariableNumberRuntime = PlcVariableNumber & {
+  value: number;
+};
+
+export type PlcVariableBoolean = PlcVariableBase & {
+  datatype: "boolean";
+  default: boolean;
+};
+
+export type PlcVariableBooleanRuntime = PlcVariableBoolean & {
+  value: boolean;
+};
+
+export type PlcVariableString = PlcVariableBase & {
+  datatype: "string";
+  default: string;
+};
+
+export type PlcVariableStringRuntime = PlcVariableString & {
+  value: string;
+};
+
+export type PlcVariableUdt<T> = PlcVariableBase & {
+  datatype: "Template";
+  default: T;
+};
+
+export type PlcVariableUdtRuntime<T> = PlcVariableUdt<T> & {
+  value: T;
+};
+
+export type PlcVariables<
+  T extends Record<string, PlcVariableBase> = Record<
+    string,
+    PlcVariable
+  >,
+> = T;
+
+type RuntimeType<T> = T extends PlcVariableBoolean ? PlcVariableBooleanRuntime
+  : T extends PlcVariableNumber ? PlcVariableNumberRuntime
+  : T extends PlcVariableString ? PlcVariableStringRuntime
+  : T extends PlcVariableUdt<infer U> ? PlcVariableUdtRuntime<U>
+  : never;
+
+export type PlcVariablesRuntime<T extends PlcVariables> = {
+  [K in keyof T]: RuntimeType<T[K]>;
+};
+
+const isVariableType = <T>(
+  variable: unknown,
+  datatype: string,
+): variable is T =>
+  typeof variable === "object" &&
+  variable !== null &&
+  "datatype" in variable &&
+  variable.datatype === datatype;
+
+export const isVariableBoolean = (
+  variable: unknown,
+): variable is PlcVariableBoolean =>
+  isVariableType<PlcVariableBoolean>(variable, "boolean");
+
+export const isVariableNumber = (
+  variable: unknown,
+): variable is PlcVariableNumber =>
+  isVariableType<PlcVariableNumber>(variable, "number");
+
+export const isVariableString = (
+  variable: unknown,
+): variable is PlcVariableString =>
+  isVariableType<PlcVariableString>(variable, "string");
+
+export const isVariableUdt = (
+  variable: unknown,
+): variable is PlcVariableUdt<unknown> =>
+  isVariableType<PlcVariableUdt<unknown>>(variable, "Template");

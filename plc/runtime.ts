@@ -1,5 +1,15 @@
 import { rTry, rTryAsync } from "@joyautomation/dark-matter";
-import { PlcConfig, PlcTaskRuntime, VariablesRuntime } from "../types.ts";
+import {
+  isVariableBoolean,
+  isVariableNumber,
+  isVariableString,
+  isVariableUdt,
+  Plc,
+  PlcConfig,
+  PlcTaskRuntime,
+  PlcVariables,
+  PlcVariablesRuntime,
+} from "../types.ts";
 import {
   clearExecuteMeasure,
   clearWaitMeasure,
@@ -10,56 +20,73 @@ import {
   measureExecute,
   measureWait,
 } from "./performance.ts";
-import { Plc } from "./types.ts";
-import {
-  createErrorString,
-  createFail,
-  createSuccess,
-  isFail,
-  Result,
-} from "@joyautomation/dark-matter";
-import { logs } from "../log.ts";
-const { main: log } = logs;
+import { isFail } from "@joyautomation/dark-matter";
+import { createPlcMqtt, updateMetricValues } from "../synapse.ts";
+import { pubsub } from "../pubsub.ts";
 
-export function createPlc(config: PlcConfig): Promise<Plc> {
-  const plc: Plc = {
+export function createPlc<V extends PlcVariables>(
+  config: PlcConfig<V>,
+) {
+  const plc: Plc<V> = {
     config,
     runtime: {
       variables: createVariables(config),
       tasks: {},
+      mqtt: {},
     },
   };
-  createTasks(plc);
   return startPlc(plc);
 }
 
-export function createVariables(config: PlcConfig): VariablesRuntime {
+export function createVariables<V extends PlcVariables>(
+  config: PlcConfig<V>,
+): PlcVariablesRuntime<V> {
   const { variables } = config;
   return Object.fromEntries(
-    Object.entries(variables).map(([key, variable]) => [
-      key,
-      {
-        ...variable,
-        value: variable.default || null,
-      },
-    ]),
-  );
+    Object.entries(variables).map(([key, variable]) => {
+      if (isVariableBoolean(variable)) {
+        return [
+          key,
+          { ...variable, value: variable.default },
+        ];
+      }
+      if (isVariableNumber(variable)) {
+        return [
+          key,
+          { ...variable, value: variable.default },
+        ];
+      }
+      if (isVariableString(variable)) {
+        return [
+          key,
+          { ...variable, value: variable.default },
+        ];
+      }
+      if (isVariableUdt(variable)) {
+        return [
+          key,
+          { ...variable, value: variable.default },
+        ];
+      }
+      throw new Error(`Unknown variable type: ${JSON.stringify(variable)}`);
+    }),
+  ) as PlcVariablesRuntime<V>;
 }
 
-export const executeTask = (
-  task: (variables: VariablesRuntime) => Promise<void> | void,
-  variables: VariablesRuntime,
+export const executeTask = <V extends PlcVariables>(
+  task: (variables: PlcVariablesRuntime<V>) => Promise<void> | void,
+  variables: PlcVariablesRuntime<V>,
 ) => rTryAsync(async () => await task(variables));
 
-export function createTasks(plc: Plc) {
+export function createTasks<V extends PlcVariables>(plc: Plc<V>) {
   const { tasks } = plc.config;
   plc.runtime.tasks = Object.fromEntries(
     Object.entries(tasks).map(([key, task]) => {
-      const metrics: PlcTaskRuntime["metrics"] = {
+      const metrics: PlcTaskRuntime<V>["metrics"] = {
         waitTime: 0,
         executeTime: 0,
       };
-      const error: PlcTaskRuntime["error"] = {
+      const error: PlcTaskRuntime<V>["error"] = {
         error: null,
         message: null,
         stack: null,
@@ -69,7 +96,7 @@ export function createTasks(plc: Plc) {
         {
           ...task,
           interval: setInterval(
-            async (variables: VariablesRuntime) => {
+            async (variables: PlcVariablesRuntime<V>) => {
               markWaitEnd(key);
               markExecuteStart(key);
               const result = await executeTask(task.program, variables);
@@ -78,7 +105,7 @@ export function createTasks(plc: Plc) {
                 error.message = result.message;
                 error.stack = result.stack;
               }
-              // updateMetricValues(plc);
+              updateMetricValues(plc);
               markExecuteEnd(key);
               const measureResult = rTry(() => {
                 clearWaitMeasure(key);
@@ -94,7 +121,7 @@ export function createTasks(plc: Plc) {
                   measureResult.message !==
                     'Cannot find mark: "main-wait-start".'
                 ) {
-                  log.error(JSON.stringify(measureResult));
+                  // log.error(JSON.stringify(measureResult));
                 }
               }
               markWaitStart(key);
@@ -104,7 +131,7 @@ export function createTasks(plc: Plc) {
                 .getEntriesByType("measure")
                 .find((measure) => measure.name === `${key}-execute`)
                 ?.duration || 0;
-              // pubsub.publish("plcUpdate", plc);
+              pubsub.publish("plcUpdate", plc);
             },
             task.scanRate,
             plc.runtime.variables,
@@ -115,12 +142,14 @@ export function createTasks(plc: Plc) {
       ];
     }),
   );
+  return plc;
 }
 
-export function startPlc(plc: Plc) {
-  return Promise.resolve(plc);
+export function startPlc<V extends PlcVariables>(plc: Plc<V>) {
+  createPlcMqtt(plc);
+  return createTasks(plc);
 }
 
-export function stopPlc(plc: Plc) {
+export function stopPlc<V extends PlcVariables>(plc: Plc<V>) {
   return Promise.resolve(plc);
 }

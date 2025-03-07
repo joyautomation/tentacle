@@ -30,7 +30,8 @@
     "npm:pako@^2.1.0": "2.1.0",
     "npm:pothos@^0.0.1": "0.0.1",
     "npm:ramda@~0.30.1": "0.30.1",
-    "npm:sparkplug-payload@1.0.3": "1.0.3"
+    "npm:sparkplug-payload@1.0.3": "1.0.3",
+    "npm:sparkplug-payload@^1.0.3": "1.0.3"
   },
   "jsr": {
     "@joyautomation/conch@0.0.22": {
@@ -70,7 +71,7 @@
         "npm:long",
         "npm:mqtt",
         "npm:pako",
-        "npm:sparkplug-payload"
+        "npm:sparkplug-payload@1.0.3"
       ]
     },
     "@std/assert@1.0.6": {
@@ -837,7 +838,8 @@
       "npm:graphql-yoga@^5.7.0",
       "npm:modbus-serial@^8.0.19",
       "npm:pothos@^0.0.1",
-      "npm:ramda@~0.30.1"
+      "npm:ramda@~0.30.1",
+      "npm:sparkplug-payload@^1.0.3"
     ]
   }
 }

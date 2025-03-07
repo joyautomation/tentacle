@@ -1,25 +1,42 @@
 import { createTentacle } from "../index.ts";
-import { VariablesRuntime } from "../types.ts";
+import {
+  PlcVariableBoolean,
+  PlcVariableNumber,
+  PlcVariablesRuntime,
+} from "../types.ts";
 
-const isNumber = (value: unknown): value is number => typeof value === "number";
+type MyVariables = {
+  count: PlcVariableNumber;
+  aBool: PlcVariableBoolean;
+};
 
-createTentacle(
+createTentacle<MyVariables>(
   {
     tasks: {
       main: {
         name: "main",
         description: "The main task",
         scanRate: 1000,
-        program: (variables: VariablesRuntime) => {
-          if (!isNumber(variables.count.value)) variables.count.value = 0;
-          if (isNumber(variables.count.value)) {
-            variables.count.value = variables.count.value + 1;
-          }
-          console.log("count", variables.count.value);
+        program: (variables) => {
+          variables.count.value = variables.count.value + 1;
         },
       },
     },
-    mqtt: {},
+    mqtt: {
+      local: {
+        enabled: true,
+        name: "local",
+        description: "Local MQTT connection",
+        serverUrl: "mqtt://10.154.92.210:1883",
+        username: "user",
+        password: "password",
+        groupId: "joy",
+        clientId: "client1",
+        nodeId: "tentacle-dev",
+        deviceId: "tentacle-dev",
+        version: "spBv1.0",
+      },
+    },
     modbus: {},
     opcua: {},
     variables: {
@@ -28,6 +45,13 @@ createTentacle(
         datatype: "number",
         description: "A counter",
         default: 0,
+        persistent: true,
+      },
+      aBool: {
+        id: "aBool",
+        datatype: "boolean",
+        description: "A boolean",
+        default: false,
         persistent: true,
       },
     },
