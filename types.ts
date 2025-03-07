@@ -5,7 +5,7 @@ export type PlcTask = {
   name: string;
   description: string;
   scanRate: number;
-  program: (variables: VariablesRuntime) => Promise<void>;
+  program: (variables: VariablesRuntime) => Promise<void> | void;
 };
 
 export type PlcTasks = Record<string, PlcTaskRuntime>;
@@ -99,7 +99,15 @@ export type Variable = {
 export type Variables = Record<string, Variable>;
 
 export type VariableRuntime = Variable & {
-  value: boolean | number | string | null;
+  value: Variable["datatype"];
 };
 
 export type VariablesRuntime = Record<string, VariableRuntime>;
+
+export type Plc = {
+  config: PlcConfig;
+  runtime: {
+    variables: VariablesRuntime;
+    tasks: PlcTasksRuntime;
+  };
+};
