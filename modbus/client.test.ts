@@ -1,5 +1,4 @@
 import { describe, it } from "@std/testing/bdd";
-import { assertSpyCall, assertSpyCalls, stub } from "@std/testing/mock";
 import { expect } from "@std/expect";
 import { Modbus, ModbusCreateInput } from "./types.ts";
 import { createModbus, disconnectModbus, readModbus } from "./client.ts";
