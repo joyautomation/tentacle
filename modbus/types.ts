@@ -25,9 +25,8 @@ export type ModbusCreateInput = {
   unitId: number;
   reverseBits: boolean;
   reverseWords: boolean;
-  zeroBased: boolean;
-  retryRate: number;
-  retryCount: number;
+  retryMinDelay: number;
+  retryMaxDelay: number;
 };
 
 export type Modbus = ModbusCreateInput & {
@@ -39,6 +38,10 @@ export type Modbus = ModbusCreateInput & {
   };
   events: EventEmitter;
   lastError: string | null;
+  retryTimeout: number | null;
+  retryCount: number;
+  retryMinDelay: number;
+  retryMaxDelay: number;
 };
 
 export type ModbusClient = ReturnType<typeof createModbusClient>;
@@ -47,7 +50,7 @@ export type ReadRegisterResult = Awaited<
 >;
 export type ReadCoilResult = Awaited<ReturnType<ModbusClient["readCoils"]>>;
 
-export type ModbusTransition = "connect" | "disconnect";
+export type ModbusTransition = "connect" | "disconnect" | "errored";
 
 export type ModbusSourceParams = {
   format: ModbusFormat;

@@ -6,6 +6,7 @@ import {
   isVariableUdt,
   Plc,
   PlcConfig,
+  PlcSources,
   PlcTaskRuntime,
   PlcVariables,
   PlcVariablesRuntime,
@@ -24,10 +25,10 @@ import { isFail } from "@joyautomation/dark-matter";
 import { createPlcMqtt, updateMetricValues } from "../synapse.ts";
 import { pubsub } from "../pubsub.ts";
 
-export function createPlc<V extends PlcVariables>(
-  config: PlcConfig<V>,
+export function createPlc<V extends PlcVariables, S extends PlcSources>(
+  config: PlcConfig<V, S>,
 ) {
-  const plc: Plc<V> = {
+  const plc: Plc<V, S> = {
     config,
     runtime: {
       variables: createVariables(config),
@@ -38,8 +39,8 @@ export function createPlc<V extends PlcVariables>(
   return startPlc(plc);
 }
 
-export function createVariables<V extends PlcVariables>(
-  config: PlcConfig<V>,
+export function createVariables<V extends PlcVariables, S extends PlcSources>(
+  config: PlcConfig<V, S>,
 ): PlcVariablesRuntime<V> {
   const { variables } = config;
   return Object.fromEntries(
@@ -78,7 +79,9 @@ export const executeTask = <V extends PlcVariables>(
   variables: PlcVariablesRuntime<V>,
 ) => rTryAsync(async () => await task(variables));
 
-export function createTasks<V extends PlcVariables>(plc: Plc<V>) {
+export function createTasks<V extends PlcVariables, S extends PlcSources>(
+  plc: Plc<V, S>,
+) {
   const { tasks } = plc.config;
   plc.runtime.tasks = Object.fromEntries(
     Object.entries(tasks).map(([key, task]) => {
@@ -145,11 +148,15 @@ export function createTasks<V extends PlcVariables>(plc: Plc<V>) {
   return plc;
 }
 
-export function startPlc<V extends PlcVariables>(plc: Plc<V>) {
+export function startPlc<V extends PlcVariables, S extends PlcSources>(
+  plc: Plc<V, S>,
+) {
   createPlcMqtt(plc);
   return createTasks(plc);
 }
 
-export function stopPlc<V extends PlcVariables>(plc: Plc<V>) {
+export function stopPlc<V extends PlcVariables, S extends PlcSources>(
+  plc: Plc<V, S>,
+) {
   return Promise.resolve(plc);
 }

@@ -1,12 +1,15 @@
 import { type ArgDictionaryItem, createApp } from "@joyautomation/conch";
 import { logs } from "./log.ts";
-import { PlcConfig, PlcVariables } from "./types.ts";
+import { PlcConfig, PlcSources, PlcVariables } from "./types.ts";
 import { createPlc } from "./plc/runtime.ts";
 import { addPlcToSchema } from "./plc/graphql.ts";
 const { main } = logs;
 
-export async function createTentacle<V extends PlcVariables>(
-  config: PlcConfig<V>,
+export async function createTentacle<
+  V extends PlcVariables,
+  S extends PlcSources,
+>(
+  config: PlcConfig<V, S>,
   title?: string,
   description?: string,
   env_prefix?: string,

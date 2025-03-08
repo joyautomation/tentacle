@@ -1,16 +1,22 @@
 import { createTentacle } from "../index.ts";
 import {
+  PlcModbusSource,
   PlcVariableBoolean,
   PlcVariableNumber,
-  PlcVariablesRuntime,
+  WithModbusSource,
 } from "../types.ts";
 
-type MyVariables = {
-  count: PlcVariableNumber;
-  aBool: PlcVariableBoolean;
+type Sources = {
+  "codesys-mb": PlcModbusSource;
 };
 
-createTentacle<MyVariables>(
+type Variables = {
+  count: PlcVariableNumber;
+  aBool: PlcVariableBoolean;
+  modbusCount: PlcVariableNumber & WithModbusSource<Sources>;
+};
+
+createTentacle<Variables, Sources>(
   {
     tasks: {
       main: {
@@ -27,7 +33,7 @@ createTentacle<MyVariables>(
         enabled: true,
         name: "local",
         description: "Local MQTT connection",
-        serverUrl: "mqtt://10.154.92.210:1883",
+        serverUrl: "mqtt://10.3.37.5:1883",
         username: "user",
         password: "password",
         groupId: "joy",
@@ -37,8 +43,20 @@ createTentacle<MyVariables>(
         version: "spBv1.0",
       },
     },
-    modbus: {},
-    opcua: {},
+    sources: {
+      "codesys-mb": {
+        enabled: true,
+        name: "codesys",
+        description: "Codesys Modbus connection",
+        host: "10.3.37.143",
+        port: 502,
+        unitId: 1,
+        reverseBits: false,
+        reverseWords: false,
+        retryMinDelay: 1000,
+        retryMaxDelay: 60000,
+      },
+    },
     variables: {
       count: {
         id: "count",
@@ -53,6 +71,20 @@ createTentacle<MyVariables>(
         description: "A boolean",
         default: false,
         persistent: true,
+      },
+      modbusCount: {
+        id: "modbusCount",
+        datatype: "number",
+        description: "A counter",
+        default: 0,
+        persistent: true,
+        source: {
+          name: "codesys-mb",
+          type: "modbus",
+          register: 0,
+          registerType: "INPUT_REGISTER",
+          format: "INT16",
+        },
       },
     },
   },
