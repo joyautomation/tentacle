@@ -7,14 +7,13 @@ describe("createModbus", () => {
   it("should create a modbus instance", async () => {
     const config: ModbusCreateInput = {
       id: "1",
-      host: "10.154.92.80",
+      host: "10.3.37.143",
       port: 502,
       unitId: 1,
       reverseBits: false,
       reverseWords: false,
-      zeroBased: false,
-      retryRate: 1000,
-      retryCount: 3,
+      retryMinDelay: 1000,
+      retryMaxDelay: 60000,
     };
     const modbus = await createModbus(config);
     const value = await readModbus(
@@ -23,7 +22,7 @@ describe("createModbus", () => {
       Modbus.Formats.INT16,
       modbus,
     );
-    expect(value).toBe(0);
+    expect(value).toBe(1);
     await disconnectModbus(modbus);
   });
 });

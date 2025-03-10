@@ -1,45 +1,47 @@
 import { pubsub } from "../pubsub.ts";
 
 import { getBuilder } from "@joyautomation/conch";
-import {
-  Plc,
-  PlcConfig,
-  PlcTask,
-  PlcTaskRuntime,
-  PlcVariableRuntime,
-  PlcVariables,
-} from "../types.ts";
+import { Plc, PlcConfig, PlcTask, PlcTaskRuntime } from "../types/types.ts";
 import { flatten } from "@joyautomation/dark-matter";
 import { startPlc, stopPlc } from "./runtime.ts";
+import {
+  PlcVariable,
+  PlcVariableRuntime,
+  PlcVariables,
+} from "../types/variables.ts";
+import { PlcSources } from "../types/sources.ts";
 
-export function addPlcToSchema<V extends PlcVariables>(
-  builder: ReturnType<typeof getBuilder<{ plc: Plc<V> }>>,
+export function addPlcToSchema<V extends PlcVariables, S extends PlcSources>(
+  builder: ReturnType<typeof getBuilder<{ plc: Plc<V, S> }>>
 ) {
-  const PlcRef = builder.objectRef<Plc<V>>("Plc");
-  const PlcConfigRef = builder.objectRef<PlcConfig<V>>("PlcConfig");
-  const PlcVariableRef = builder.objectRef<
-    PlcVariableRuntime
-  >("PlcVariable");
-  const PlcTaskConfigRef = builder.objectRef<PlcTask<V>>("PlcTask");
-  const PlcTaskRuntimeRef = builder.objectRef<PlcTaskRuntime<V>>(
-    "PlcTaskRuntime",
-  );
-  const PlcTaskMetricsRef = builder.objectRef<PlcTaskRuntime<V>["metrics"]>(
-    "PlcTaskMetrics",
-  );
-  const PlcTaskErrorRef = builder.objectRef<PlcTaskRuntime<V>["error"]>(
-    "PlcTaskError",
-  );
+  const PlcRef = builder.objectRef<Plc<V, S>>("Plc");
+  const PlcConfigRef = builder.objectRef<PlcConfig<V, S>>("PlcConfig");
+  const PlcConfigTaskRef = builder.objectRef<PlcTask<V, S>>("PlcTask");
+  const PlcConfigVariableRef = builder.objectRef<PlcVariable<S>>("PlcVariable");
+
+  const PlcRuntimeRef = builder.objectRef<Plc<V, S>["runtime"]>("PlcRuntime");
+  const PlcRuntimeTaskRef =
+    builder.objectRef<PlcTaskRuntime<V, S>>("PlcTaskRuntime");
+  const PlcRuntimeTaskMetricsRef =
+    builder.objectRef<PlcTaskRuntime<V, S>["metrics"]>("PlcTaskMetrics");
+  const PlcRuntimeTaskErrorRef =
+    builder.objectRef<PlcTaskRuntime<V, S>["error"]>("PlcTaskError");
+  const PlcRuntimeVariableRef =
+    builder.objectRef<PlcVariableRuntime<S>>("PlcVariableRuntime");
+  const PlcRuntimeMqttRef =
+    builder.objectRef<Plc<V, S>["runtime"]["mqtt"]>("PlcMqttRuntime");
+  const PlcRuntimeSourcesRef =
+    builder.objectRef<Plc<V, S>["runtime"]["sources"]>("PlcSourceRuntime");
 
   PlcConfigRef.implement({
     fields: (t) => ({
       tasks: t.field({
-        type: [PlcTaskConfigRef],
+        type: [PlcConfigTaskRef],
         resolve: (parent) => flatten<PlcTask<V>>(parent.tasks),
       }),
     }),
   });
-  PlcVariableRef.implement({
+  PlcConfigVariableRef.implement({
     fields: (t) => ({
       id: t.exposeString("id"),
       datatype: t.exposeString("datatype"),
@@ -53,7 +55,21 @@ export function addPlcToSchema<V extends PlcVariables>(
       }),
     }),
   });
-  PlcTaskConfigRef.implement({
+  PlcRuntimeVariableRef.implement({
+    fields: (t) => ({
+      id: t.exposeString("id"),
+      datatype: t.exposeString("datatype"),
+      description: t.exposeString("description"),
+      default: t.string({
+        resolve: (parent) => parent.default?.toString(),
+      }),
+      persistent: t.exposeBoolean("persistent"),
+      value: t.string({
+        resolve: (parent) => parent.value?.toString(),
+      }),
+    }),
+  });
+  PlcConfigTaskRef.implement({
     fields: (t) => ({
       id: t.exposeString("name"),
       name: t.exposeString("name"),
@@ -64,13 +80,7 @@ export function addPlcToSchema<V extends PlcVariables>(
       }),
     }),
   });
-  PlcTaskMetricsRef.implement({
-    fields: (t) => ({
-      waitTime: t.exposeFloat("waitTime"),
-      executeTime: t.exposeFloat("executeTime"),
-    }),
-  });
-  PlcTaskErrorRef.implement({
+  PlcRuntimeTaskErrorRef.implement({
     fields: (t) => ({
       error: t.string({
         nullable: true,
@@ -86,7 +96,7 @@ export function addPlcToSchema<V extends PlcVariables>(
       }),
     }),
   });
-  PlcTaskRuntimeRef.implement({
+  PlcRuntimeTaskRef.implement({
     fields: (t) => ({
       id: t.exposeString("name"),
       name: t.exposeString("name"),
@@ -97,29 +107,45 @@ export function addPlcToSchema<V extends PlcVariables>(
       }),
       interval: t.exposeInt("interval"),
       metrics: t.field({
-        type: PlcTaskMetricsRef,
+        type: PlcRuntimeTaskMetricsRef,
         resolve: (parent) => parent.metrics,
       }),
       error: t.field({
-        type: PlcTaskErrorRef,
+        type: PlcRuntimeTaskErrorRef,
         resolve: (parent) => parent.error,
+      }),
+    }),
+  });
+  PlcRuntimeRef.implement({
+    fields: (t) => ({
+      tasks: t.field({
+        type: [PlcRuntimeTaskRef],
+        resolve: (parent) => flatten<PlcTaskRuntime<V, S>>(parent.tasks),
+      }),
+      variables: t.field({
+        type: [PlcRuntimeVariableRef],
+        resolve: (parent) =>
+          flatten<PlcVariableRuntime<S, V>>(parent.variables),
+      }),
+      mqtt: t.field({
+        type: PlcRuntimeMqttRef,
+        resolve: (parent) => parent.mqtt,
+      }),
+      sources: t.field({
+        type: PlcRuntimeSourcesRef,
+        resolve: (parent) => parent.sources,
       }),
     }),
   });
   PlcRef.implement({
     fields: (t) => ({
+      runtime: t.field({
+        type: PlcRuntimeRef,
+        resolve: (parent) => parent.runtime,
+      }),
       config: t.field({
         type: PlcConfigRef,
         resolve: (parent) => parent.config,
-      }),
-      variables: t.field({
-        type: [PlcVariableRef],
-        resolve: (parent) =>
-          flatten<PlcVariableRuntime>(parent.runtime.variables),
-      }),
-      tasks: t.field({
-        type: [PlcTaskRuntimeRef],
-        resolve: (parent) => flatten<PlcTaskRuntime<V>>(parent.runtime.tasks),
       }),
     }),
   });
@@ -129,7 +155,8 @@ export function addPlcToSchema<V extends PlcVariables>(
       resolve: (_, _args, context) => {
         return context.plc;
       },
-    }));
+    })
+  );
   builder.mutationField("restartPlc", (t) =>
     t.field({
       type: PlcRef,
@@ -138,11 +165,13 @@ export function addPlcToSchema<V extends PlcVariables>(
         await startPlc(context.plc);
         return context.plc;
       },
-    }));
+    })
+  );
   builder.subscriptionField("plc", (t) =>
     t.field({
       type: PlcRef,
       subscribe: () => pubsub.subscribe("plcUpdate"),
       resolve: (payload) => payload,
-    }));
+    })
+  );
 }
