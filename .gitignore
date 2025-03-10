@@ -2,3 +2,4 @@ node_modules
 development
 runtime
 coverage
+.env
