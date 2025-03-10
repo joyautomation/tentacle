@@ -1,13 +1,15 @@
 import { type ArgDictionaryItem, createApp } from "@joyautomation/conch";
 import { logs } from "./log.ts";
-import { PlcConfig, PlcSources, PlcVariables } from "./types.ts";
+import { PlcConfig } from "./types/types.ts";
+import { PlcSources } from "./types/sources.ts";
+import { PlcVariables } from "./types/variables.ts";
 import { createPlc } from "./plc/runtime.ts";
 import { addPlcToSchema } from "./plc/graphql.ts";
 const { main } = logs;
 
 export async function createTentacle<
   V extends PlcVariables,
-  S extends PlcSources,
+  S extends PlcSources
 >(
   config: PlcConfig<V, S>,
   title?: string,
@@ -15,7 +17,7 @@ export async function createTentacle<
   env_prefix?: string,
   argDictionary?: { [key: string]: ArgDictionaryItem },
   port?: number,
-  host?: string,
+  host?: string
 ) {
   const context = { plc: await createPlc(config) };
   const app = await createApp(
@@ -33,7 +35,7 @@ export async function createTentacle<
       return builder;
     },
     () => {},
-    context,
+    context
   );
   app();
   return app;

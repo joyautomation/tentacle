@@ -25,8 +25,8 @@ export type ModbusCreateInput = {
   unitId: number;
   reverseBits: boolean;
   reverseWords: boolean;
-  retryMinDelay: number;
-  retryMaxDelay: number;
+  retryMinDelay?: number;
+  retryMaxDelay?: number;
 };
 
 export type Modbus = ModbusCreateInput & {

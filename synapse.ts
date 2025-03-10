@@ -1,5 +1,7 @@
 import { createNode, SparkplugMetric } from "@joyautomation/synapse";
-import { Plc, PlcVariables, PlcVariablesRuntime } from "./types.ts";
+import { Plc } from "./types/types.ts";
+import { PlcVariables, PlcVariablesRuntime } from "./types/variables.ts";
+import { PlcSources, PlcSourcesRuntime } from "./types/sources.ts";
 import { TypeStr } from "sparkplug-payload/sparkplugPayloadProto";
 
 export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
@@ -38,7 +40,9 @@ export const variablesToMetrics = <V extends PlcVariables>(
   }, {} as Record<string, SparkplugMetric>);
 };
 
-export function createPlcMqtt<V extends PlcVariables>(plc: Plc<V>) {
+export function createPlcMqtt<V extends PlcVariables, S extends PlcSources>(
+  plc: Plc<V, S>,
+) {
   const {
     config: { mqtt },
   } = plc;
@@ -67,7 +71,12 @@ export function createPlcMqtt<V extends PlcVariables>(plc: Plc<V>) {
   return plc;
 }
 
-export const updateMetricValues = <V extends PlcVariables>(plc: Plc<V>) => {
+export const updateMetricValues = <
+  V extends PlcVariables,
+  S extends PlcSources,
+>(
+  plc: Plc<V, S>,
+) => {
   for (const [key, variable] of Object.entries(plc.runtime.variables)) {
     for (const node of Object.values(plc.runtime.mqtt)) {
       const deviceId = Object.keys(node.devices)[0];
