@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { createModbusClient } from "./client.ts";
+import { createModbusClient, createModbusErrorProperties } from "./client.ts";
 
 export const Modbus = {
   RegisterTypes: {
@@ -37,7 +37,7 @@ export type Modbus = ModbusCreateInput & {
     errored: boolean;
   };
   events: EventEmitter;
-  lastError: string | null;
+  lastError: ReturnType<typeof createModbusErrorProperties> | null;
   retryTimeout: number | null;
   retryCount: number;
   retryMinDelay: number;

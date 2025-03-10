@@ -37,7 +37,6 @@ try {
         Modbus.Formats.INT16,
         modbus,
       );
-      console.log(value);
     }
   }, 1000);
 
