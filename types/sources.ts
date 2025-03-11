@@ -37,12 +37,10 @@ export type PlcOpcuaSourceRuntime = PlcOpcuaSource & {
 export type PlcSource = PlcModbusSource | PlcOpcuaSource;
 
 export type PlcSources<
-  T extends Record<string, PlcSourceBase> = Record<string, PlcSource>,
+  T extends Record<string, PlcSourceBase> = Record<string, PlcSource>
 > = T;
 
-export type PlcSourceRuntime =
-  | PlcModbusSourceRuntime
-  | PlcOpcuaSourceRuntime;
+export type PlcSourceRuntime = PlcModbusSourceRuntime | PlcOpcuaSourceRuntime;
 
 export type PlcSourcesRuntime<T extends PlcSources> = {
   [K in keyof T]: PlcSourceRuntime;
@@ -61,11 +59,9 @@ export type PlcVariableSourceRuntimeBase = {
 };
 
 export type PlcVariableModbusSource<S extends PlcSources> =
-  & PlcVariableSourceBase
-  & {
-    id:
-      & keyof { [K in keyof S]: S[K] extends PlcModbusSource ? K : never }
-      & {
+  PlcVariableSourceBase & {
+    id: keyof { [K in keyof S]: S[K] extends PlcModbusSource ? K : never } &
+      {
         [K in keyof S]: S[K] extends PlcModbusSource ? K : never;
       }[keyof S];
     type: "modbus";
@@ -75,23 +71,19 @@ export type PlcVariableModbusSource<S extends PlcSources> =
   };
 
 export type PlcVariableModbusSourceRuntime<S extends PlcSources> =
-  & PlcVariableModbusSource<S>
-  & PlcVariableSourceRuntimeBase;
+  PlcVariableModbusSource<S> & PlcVariableSourceRuntimeBase;
 
 export type PlcVariableOpcuaSource<S extends PlcSources> =
-  & PlcVariableSourceBase
-  & {
-    id:
-      & keyof { [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never }
-      & {
+  PlcVariableSourceBase & {
+    id: keyof { [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never } &
+      {
         [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never;
       }[keyof S];
     type: "opcua";
   };
 
 export type PlcVariableOpcuaSourceRuntime<S extends PlcSources> =
-  & PlcVariableOpcuaSource<S>
-  & {
+  PlcVariableOpcuaSource<S> & {
     error: {
       error: string | null;
       message?: string | null;
@@ -100,8 +92,7 @@ export type PlcVariableOpcuaSourceRuntime<S extends PlcSources> =
   };
 
 export type PlcVariableSourceRuntime<S extends PlcSources> =
-  & PlcVariableModbusSourceRuntime<S>
-  & {
+  PlcVariableModbusSourceRuntime<S> & {
     error: {
       error: string | null;
       message?: string | null;
@@ -138,7 +129,7 @@ export const isSourceOpcua = (source: unknown): source is PlcOpcuaSource =>
   (source as { type: string }).type === "opcua";
 
 export const isVariableModbusSourceRuntime = <S extends PlcSources>(
-  source: unknown,
+  source: unknown
 ): source is PlcVariableModbusSourceRuntime<S> => {
   if (
     typeof source === "object" &&
@@ -157,17 +148,13 @@ export const isVariableModbusSourceRuntime = <S extends PlcSources>(
         stack?: string | null;
       };
     };
-    return (
-      type === "modbus" &&
-      typeof error === "object" &&
-      "error" in source
-    );
+    return type === "modbus" && typeof error === "object" && "error" in source;
   }
   return false;
 };
 
 export const isVariableOpcuaSourceRuntime = <S extends PlcSources>(
-  source: unknown,
+  source: unknown
 ): source is PlcVariableOpcuaSourceRuntime<S> => {
   if (
     typeof source === "object" &&
@@ -183,11 +170,7 @@ export const isVariableOpcuaSourceRuntime = <S extends PlcSources>(
         stack?: string | null;
       };
     };
-    return (
-      type === "opcua" &&
-      typeof error === "object" &&
-      "error" in source
-    );
+    return type === "opcua" && typeof error === "object" && "error" in source;
   }
   return false;
 };

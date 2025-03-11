@@ -17,6 +17,7 @@
     "modbus-serial": "npm:modbus-serial@^8.0.19",
     "pothos": "npm:pothos@^0.0.1",
     "ramda": "npm:ramda@^0.30.1",
+    "redis": "npm:redis@^4.7.0",
     "sparkplug-payload": "npm:sparkplug-payload@^1.0.3"
   },
   "nodeModulesDir": "auto"

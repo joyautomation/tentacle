@@ -5,6 +5,7 @@ import { PlcSources } from "./types/sources.ts";
 import { PlcVariables } from "./types/variables.ts";
 import { createPlc } from "./plc/runtime.ts";
 import { addPlcToSchema } from "./plc/graphql.ts";
+import { addMemoryUsageToSchema } from "./memory.ts";
 const { main } = logs;
 
 export async function createTentacle<
@@ -32,6 +33,7 @@ export async function createTentacle<
     main,
     (builder, _args) => {
       addPlcToSchema(builder);
+      addMemoryUsageToSchema(builder);
       return builder;
     },
     () => {},
