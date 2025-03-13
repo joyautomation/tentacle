@@ -50,7 +50,7 @@ export type ReadRegisterResult = Awaited<
 >;
 export type ReadCoilResult = Awaited<ReturnType<ModbusClient["readCoils"]>>;
 
-export type ModbusTransition = "connect" | "disconnect" | "errored";
+export type ModbusTransition = "connect" | "disconnect" | "fail";
 
 export type ModbusSourceParams = {
   format: ModbusFormat;
