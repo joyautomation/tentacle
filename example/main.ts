@@ -5,12 +5,14 @@ import {
   PlcVariableNumber,
   PlcVariableNumberWithModbusSource,
 } from "../types/variables.ts";
+import { adamSources, AdamSources } from "./sources/adam.ts";
+import { adamVariables, AdamVariables } from "./variables/adam.ts";
 
-type Sources = {
+type Sources = AdamSources & {
   "codesys-mb": PlcModbusSource;
 };
 
-type Variables = {
+type Variables = AdamVariables & {
   count: PlcVariableNumber;
   aBool: PlcVariableBoolean;
   modbusCount: PlcVariableNumberWithModbusSource<Sources>;
@@ -43,6 +45,7 @@ createTentacle<Variables, Sources>({
     },
   },
   sources: {
+    ...adamSources,
     "codesys-mb": {
       id: "codesys-mb",
       type: "modbus",
@@ -59,6 +62,7 @@ createTentacle<Variables, Sources>({
     },
   },
   variables: {
+    ...adamVariables,
     count: {
       id: "count",
       datatype: "number",

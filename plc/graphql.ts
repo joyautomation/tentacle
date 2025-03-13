@@ -27,6 +27,7 @@ import {
   PlcVariableOpcuaSourceRuntime,
 } from "../types/sources.ts";
 import { createNode, SparkplugNode } from "@joyautomation/synapse";
+import { getModbusStateString } from "../modbus/client.ts";
 
 export function addPlcToSchema<V extends PlcVariables, S extends PlcSources>(
   builder: ReturnType<typeof getBuilder<{ plc: Plc<V, S> }>>
@@ -200,6 +201,19 @@ export function addPlcToSchema<V extends PlcVariables, S extends PlcSources>(
       port: t.exposeInt("port"),
       retryMinDelay: t.exposeInt("retryMinDelay"),
       retryMaxDelay: t.exposeInt("retryMaxDelay"),
+      state: t.string({
+        resolve: (parent) => {
+          if (isSourceModbus(parent)) {
+            return getModbusStateString(parent.client);
+          } else {
+            return "Unknown";
+          }
+        },
+      }),
+      error: t.field({
+        type: PlcRuntimeVariableErrorRef,
+        resolve: (parent) => parent.client?.lastError,
+      }),
     }),
   });
   PlcRuntimeVariableModbusSourceRef.implement({

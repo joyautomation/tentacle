@@ -131,3 +131,21 @@ export function subscribeToKeys(
   const keyPattern = "__keyevent@0__:*"; // Subscribe to all key events
   subscriber.pSubscribe(keyPattern, onMessage);
 }
+
+export async function publish(
+  publisher: ReturnType<typeof createClient>,
+  key: string,
+  value: string,
+  ttl?: number
+) {
+  await publisher.set(key, value);
+  if (ttl) {
+    await publisher.expire(key, ttl);
+  }
+}
+
+export async function getAllValues(redis: ReturnType<typeof createClient>) {
+  const keys = await redis.keys("*");
+  const values = await redis.mGet(keys);
+  return Object.fromEntries(keys.map((key, index) => [key, values[index]]));
+}
