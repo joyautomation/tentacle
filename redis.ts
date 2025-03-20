@@ -140,17 +140,6 @@ export function subscribeToKeys(
 ) {
   const keyPattern = "__keyevent@0__:*"; // Subscribe to all key events
   subscriber.pSubscribe(keyPattern, onMessage);
-  return () => {
-    unsubscribeFromKeys(subscriber, onMessage);
-  };
-}
-
-export function unsubscribeFromKeys(
-  subscriber: ReturnType<typeof createClient>,
-  onMessage: (key: string, topic: string) => void,
-) {
-  const keyPattern = "__keyevent@0__:*"; // Unsubscribe from all key events
-  subscriber.pUnsubscribe(keyPattern, onMessage);
 }
 
 export async function publish(
@@ -188,14 +177,6 @@ export async function publishVariables<
   if (keyValuePairs.length > 0) {
     await publisher.mSet(keyValuePairs);
   }
-}
-
-export async function getValue(
-  redis: ReturnType<typeof createClient>,
-  key: string,
-) {
-  const value = await redis.get(key);
-  return value ? JSON.parse(value) : null;
 }
 
 export async function getAllValues(redis: ReturnType<typeof createClient>) {
