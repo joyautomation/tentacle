@@ -24,6 +24,7 @@ interface LeaseConfig {
   identity: string;
   leaseDurationSeconds?: number;
   k8sApiUrl?: string;
+  podName?: string;
 }
 
 interface LeaseState {
@@ -37,6 +38,7 @@ const defaultConfig = {
   namespace: "default",
   leaseDurationSeconds: 5, // Reduced from 15s to 5s for faster failover
   k8sApiUrl: "http://localhost:8001",
+  podName: Deno.env.get("HOSTNAME"), // Kubernetes sets this to the pod name
 };
 
 const createLeaseState = (config: LeaseConfig): LeaseState => ({
@@ -160,6 +162,49 @@ const updateLease = async (state: LeaseState): Promise<Result<Lease>> => {
   }
 };
 
+const updatePodLabels = async (state: LeaseState, isLeader: boolean): Promise<Result<void>> => {
+  const { config } = state;
+  if (!config.podName) {
+    return createSuccess(undefined); // Skip if podName not provided
+  }
+
+  const labels = {
+    app: 'tentacle',
+    role: isLeader ? 'leader' : 'follower'
+  };
+
+  try {
+    const response = await fetch(
+      `${config.k8sApiUrl}/api/v1/namespaces/${config.namespace}/pods/${config.podName}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/strategic-merge-patch+json',
+        },
+        body: JSON.stringify({
+          metadata: {
+            labels
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      return createFail({
+        error: `Failed to update pod labels: ${response.statusText}`,
+        cause: await response.text(),
+      });
+    }
+
+    return createSuccess(undefined);
+  } catch (error) {
+    return createFail({
+      error: "Failed to update pod labels",
+      cause: error,
+    });
+  }
+};
+
 const startLeaseRenewal = (
   state: LeaseState,
   onLeadershipLost: () => void
@@ -175,6 +220,7 @@ const startLeaseRenewal = (
       const updateResult = await updateLease(state);
       if (!updateResult.success) {
         console.error("Failed to renew lease:", updateResult);
+        await updatePodLabels(state, false);
         onLeadershipLost();
       }
     }
@@ -199,12 +245,20 @@ export const tryAcquireLeadership = async (
     if (!createResult.success) {
       return createFail(createResult);
     }
+
     const newState = {
       ...state,
       currentLease: createResult.output,
       isLeader: true,
     };
-    return createSuccess([true, startLeaseRenewal(newState, onLeadershipLost)]);
+
+    // Update pod labels to indicate leadership
+    await updatePodLabels(newState, true);
+
+    return createSuccess([
+      true,
+      startLeaseRenewal(newState, onLeadershipLost),
+    ]);
   }
 
   // Check if the existing lease is expired
@@ -231,11 +285,21 @@ export const tryAcquireLeadership = async (
   return createSuccess([false, { ...state, isLeader: false }]);
 };
 
-export const releaseLease = (state: LeaseState): LeaseState => {
+export const releaseLease = async (state: LeaseState): Promise<LeaseState> => {
   if (state.renewalTimer) {
     clearInterval(state.renewalTimer);
   }
-  return { ...state, isLeader: false, renewalTimer: undefined };
+  
+  // Update pod labels to remove leader status
+  if (state.isLeader) {
+    await updatePodLabels(state, false);
+  }
+
+  return {
+    ...state,
+    isLeader: false,
+    renewalTimer: undefined,
+  };
 };
 
 export const isLeader = (state: LeaseState): boolean => state.isLeader;
