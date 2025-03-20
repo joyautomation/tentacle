@@ -1,17 +1,17 @@
 import { EventEmitter } from "node:events";
-import { createModbusClient } from "./client.ts";
+import { createModbusClient, createModbusErrorProperties } from "./client.ts";
 
 export const Modbus = {
   RegisterTypes: {
-    HOLDING_REGISTER: "HoldingRegister",
-    INPUT_REGISTER: "InputRegister",
-    COIL: "Coil",
-    DISCRETE_INPUT: "DiscreteInput",
+    HOLDING_REGISTER: "HOLDING_REGISTER",
+    INPUT_REGISTER: "INPUT_REGISTER",
+    COIL: "COIL",
+    DISCRETE_INPUT: "DISCRETE_INPUT",
   },
   Formats: {
-    INT16: "Int16",
-    INT32: "Int32",
-    FLOAT: "Float",
+    INT16: "INT16",
+    INT32: "INT32",
+    FLOAT: "FLOAT",
   },
 } as const;
 
@@ -25,9 +25,8 @@ export type ModbusCreateInput = {
   unitId: number;
   reverseBits: boolean;
   reverseWords: boolean;
-  zeroBased: boolean;
-  retryRate: number;
-  retryCount: number;
+  retryMinDelay?: number;
+  retryMaxDelay?: number;
 };
 
 export type Modbus = ModbusCreateInput & {
@@ -38,7 +37,11 @@ export type Modbus = ModbusCreateInput & {
     errored: boolean;
   };
   events: EventEmitter;
-  lastError: string | null;
+  lastError: ReturnType<typeof createModbusErrorProperties> | null;
+  retryTimeout: number | null;
+  retryCount: number;
+  retryMinDelay: number;
+  retryMaxDelay: number;
 };
 
 export type ModbusClient = ReturnType<typeof createModbusClient>;
@@ -47,7 +50,7 @@ export type ReadRegisterResult = Awaited<
 >;
 export type ReadCoilResult = Awaited<ReturnType<ModbusClient["readCoils"]>>;
 
-export type ModbusTransition = "connect" | "disconnect";
+export type ModbusTransition = "connect" | "disconnect" | "fail";
 
 export type ModbusSourceParams = {
   format: ModbusFormat;

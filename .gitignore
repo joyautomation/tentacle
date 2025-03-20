@@ -1,3 +1,6 @@
+node_modules
 development
 runtime
 coverage
+.env
+example*.env
