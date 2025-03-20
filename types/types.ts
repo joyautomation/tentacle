@@ -4,23 +4,27 @@
 import { createNode } from "@joyautomation/synapse";
 import { PlcVariables, PlcVariablesRuntime } from "./variables.ts";
 import { PlcSources, PlcSourcesRuntime } from "./sources.ts";
-
-export type PlcTask<V extends PlcVariables, S extends PlcSources> = {
+import { LeaseState } from "../lease/lease.ts";
+import { createClient } from "redis";
+export type PlcTask<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+> = {
   name: string;
   description: string;
   scanRate: number;
   program: (variables: PlcVariablesRuntime<S, V>) => Promise<void> | void;
 };
 
-export type PlcTasks<V extends PlcVariables, S extends PlcSources> = Record<
-  string,
-  PlcTaskRuntime<V, S>
->;
+export type PlcTasks<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+> = Record<string, PlcTaskRuntime<S, V>>;
 
 export type PlcTaskRuntime<
-  V extends PlcVariables,
-  S extends PlcSources
-> = PlcTask<V, S> & {
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+> = PlcTask<S, V> & {
   interval: number;
   metrics: { waitTime: number; executeTime: number };
   error: {
@@ -31,9 +35,9 @@ export type PlcTaskRuntime<
 };
 
 export type PlcTasksRuntime<
-  V extends PlcVariables,
-  S extends PlcSources
-> = Record<string, PlcTaskRuntime<V, S>>;
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+> = Record<string, PlcTaskRuntime<S, V>>;
 
 export type MqttConnection = {
   enabled: boolean;
@@ -49,17 +53,39 @@ export type MqttConnection = {
   version?: "spBv1.0";
 };
 
-export type PlcConfig<V extends PlcVariables, S extends PlcSources> = {
-  tasks: Record<string, PlcTask<V, S>>;
+export type PlcHaConfig = {
+  lease: string;
+  namespace: string;
+};
+
+export type PlcHaRuntime = PlcHaConfig & {
+  state: LeaseState;
+};
+
+export type PlcConfig<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+> = {
+  ha?: PlcHaConfig;
+  redisUrl?: string;
+  tasks: Record<string, PlcTask<S, V>>;
   mqtt: Record<string, MqttConnection>;
   sources: S;
   variables: V;
 };
 
-export type Plc<V extends PlcVariables, S extends PlcSources> = {
-  config: PlcConfig<V, S>;
+export type Plc<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+> = {
+  config: PlcConfig<S, V>;
   runtime: {
-    tasks: PlcTasksRuntime<V, S>;
+    ha?: PlcHaRuntime;
+    redis?: {
+      publisher: ReturnType<typeof createClient>;
+      subscriber: ReturnType<typeof createClient>;
+    };
+    tasks: PlcTasksRuntime<S, V>;
     variables: PlcVariablesRuntime<S, V>;
     mqtt: Record<string, ReturnType<typeof createNode>>;
     sources: PlcSourcesRuntime<S>;
