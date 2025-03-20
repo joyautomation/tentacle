@@ -19,7 +19,7 @@ export type MemoryUsage = {
 
 export function convertBytesToUnits(
   bytes: number,
-  units?: MemoryUsageUnits | null
+  units?: MemoryUsageUnits | null,
 ) {
   switch (units) {
     case MemoryUsageUnits.KB:
@@ -35,7 +35,7 @@ export function convertBytesToUnits(
 
 export const convertDenoMemoryUsage = (
   memoryUsage: MemoryUsage,
-  units?: MemoryUsageUnits | null
+  units?: MemoryUsageUnits | null,
 ) => ({
   rss: convertBytesToUnits(memoryUsage.rss, units),
   heapTotal: convertBytesToUnits(memoryUsage.heapTotal, units),
@@ -44,11 +44,12 @@ export const convertDenoMemoryUsage = (
 });
 
 export function addMemoryUsageToSchema<
-  V extends PlcVariables,
-  S extends PlcSources
->(builder: ReturnType<typeof getBuilder<{ plc: Plc<V, S> }>>) {
-  const MemoryUsageRef =
-    builder.objectRef<ReturnType<typeof Deno.memoryUsage>>("MemoryUsage");
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(builder: ReturnType<typeof getBuilder<{ plc: Plc<S, V> }>>) {
+  const MemoryUsageRef = builder.objectRef<ReturnType<typeof Deno.memoryUsage>>(
+    "MemoryUsage",
+  );
   const MemoryUsageUnitsRef = builder.enumType(MemoryUsageUnits, {
     name: "MemoryUsageUnits",
   });
@@ -76,6 +77,5 @@ export function addMemoryUsageToSchema<
       type: MemoryUsageRef,
       resolve: (_root, args) =>
         convertDenoMemoryUsage(Deno.memoryUsage(), args.units),
-    })
-  );
+    }));
 }

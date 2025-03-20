@@ -1,15 +1,21 @@
-import { Args } from "@std/cli";
 import {
-  isSuccess,
   createErrorString,
   createFail,
   createSuccess,
+  isSuccess,
   Result,
 } from "@joyautomation/dark-matter";
 import { logs } from "./log.ts";
 const { main: log } = logs;
 
 import { createClient } from "redis";
+import {
+  PlcVariableRuntime,
+  PlcVariables,
+  PlcVariablesRuntime,
+} from "./types/variables.ts";
+import { PlcSources } from "./types/sources.ts";
+import { PlcConfig } from "./types/types.ts";
 
 let publisher: ReturnType<typeof createClient> | undefined;
 let subscriber: ReturnType<typeof createClient> | undefined;
@@ -28,35 +34,28 @@ export function validateRedisUrl(url: string | undefined): Result<string> {
   }
 }
 
-function createRedisConnectionString(args: Args) {
-  const argsRedisUrlResult = validateRedisUrl(args["redis-url"]);
-  if (isSuccess(argsRedisUrlResult)) {
-    log.debug("redis url arg valid: ", argsRedisUrlResult.output);
-    return argsRedisUrlResult.output;
-  } else {
-    log.debug("redis url arg invalid: ", argsRedisUrlResult.error);
-  }
-  const mantleRedisUrlResult = validateRedisUrl(
-    Deno.env.get("MANTLE_REDIS_URL")
-  );
-  if (isSuccess(mantleRedisUrlResult)) {
-    log.debug(
-      "redis url environment variable valid: ",
-      mantleRedisUrlResult.output
-    );
-    return mantleRedisUrlResult.output;
-  } else {
-    log.debug(
-      "redis url environment variable invalid: ",
-      mantleRedisUrlResult.error
-    );
+function createRedisConnectionString<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  config: PlcConfig<S, V>,
+) {
+  const redisUrlResult = validateRedisUrl(config.redisUrl);
+  if (isSuccess(redisUrlResult)) {
+    log.debug("redis url config valid: ", redisUrlResult.output);
+    return redisUrlResult.output;
   }
   log.debug('using default redis url: "redis://localhost:6379"');
   return "redis://localhost:6379";
 }
 
-export async function getPublisher(args: Args) {
-  const url = createRedisConnectionString(args);
+export async function getPublisher<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  config: PlcConfig<S, V>,
+) {
+  const url = createRedisConnectionString(config);
   try {
     if (!publisher) {
       publisher = createClient({ url });
@@ -67,19 +66,22 @@ export async function getPublisher(args: Args) {
   } catch (e) {
     publisher = undefined;
     return createFail(
-      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`
+      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`,
     );
   }
 }
 
-export async function getPublisherRetry(
-  args: Args,
+export async function getPublisherRetry<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  config: PlcConfig<S, V>,
   maxRetries: number,
-  delay: number
+  delay: number,
 ) {
   let retries = 0;
   while (retries < maxRetries) {
-    const publisherResult = await getPublisher(args);
+    const publisherResult = await getPublisher(config);
     if (isSuccess(publisherResult)) {
       return publisherResult;
     }
@@ -89,8 +91,13 @@ export async function getPublisherRetry(
   return createFail(`Failed to connect to Redis after ${maxRetries} retries`);
 }
 
-export async function getSubscriber(args: Args) {
-  const url = createRedisConnectionString(args);
+export async function getSubscriber<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  config: PlcConfig<S, V>,
+) {
+  const url = createRedisConnectionString(config);
   try {
     if (!subscriber) {
       subscriber = createClient({ url });
@@ -102,19 +109,22 @@ export async function getSubscriber(args: Args) {
   } catch (e) {
     subscriber = undefined;
     return createFail(
-      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`
+      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`,
     );
   }
 }
 
-export async function getSubscriberRetry(
-  args: Args,
+export async function getSubscriberRetry<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  config: PlcConfig<S, V>,
   maxRetries: number,
-  delay: number
+  delay: number,
 ) {
   let retries = 0;
   while (retries < maxRetries) {
-    const subscriberResult = await getSubscriber(args);
+    const subscriberResult = await getSubscriber(config);
     if (isSuccess(subscriberResult)) {
       return subscriberResult;
     }
@@ -126,7 +136,7 @@ export async function getSubscriberRetry(
 
 export function subscribeToKeys(
   subscriber: ReturnType<typeof createClient>,
-  onMessage: (key: string, topic: string) => void
+  onMessage: (key: string, topic: string) => void,
 ) {
   const keyPattern = "__keyevent@0__:*"; // Subscribe to all key events
   subscriber.pSubscribe(keyPattern, onMessage);
@@ -136,7 +146,7 @@ export async function publish(
   publisher: ReturnType<typeof createClient>,
   key: string,
   value: string,
-  ttl?: number
+  ttl?: number,
 ) {
   await publisher.set(key, value);
   if (ttl) {
@@ -144,8 +154,48 @@ export async function publish(
   }
 }
 
+export async function publishVariable<S extends PlcSources>(
+  publisher: ReturnType<typeof createClient>,
+  variable: PlcVariableRuntime<S>,
+) {
+  const valueString = JSON.stringify(variable.value);
+  await publish(publisher, variable.id, valueString);
+}
+
+export async function publishVariables<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  publisher: ReturnType<typeof createClient>,
+  variables: PlcVariablesRuntime<S, V>,
+) {
+  const keyValuePairs = Object.values(variables).flatMap(
+    (
+      variable: PlcVariableRuntime<S>,
+    ) => [variable.id, JSON.stringify(variable.value)],
+  );
+  if (keyValuePairs.length > 0) {
+    await publisher.mSet(keyValuePairs);
+  }
+}
+
 export async function getAllValues(redis: ReturnType<typeof createClient>) {
   const keys = await redis.keys("*");
   const values = await redis.mGet(keys);
   return Object.fromEntries(keys.map((key, index) => [key, values[index]]));
+}
+
+export async function setVariableValuesFromRedis<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  redis: ReturnType<typeof createClient>,
+  variables: PlcVariablesRuntime<S, V>,
+) {
+  const values = await getAllValues(redis);
+  Object.entries(variables).forEach(([key, variable]) => {
+    variable.value = values[key]
+      ? JSON.parse(values[key])
+      : variable.default || null;
+  });
 }

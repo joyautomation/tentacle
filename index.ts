@@ -9,25 +9,26 @@ import { addMemoryUsageToSchema } from "./memory.ts";
 const { main } = logs;
 
 export async function createTentacle<
-  V extends PlcVariables,
-  S extends PlcSources
+  S extends PlcSources,
+  V extends PlcVariables<S>,
 >(
-  config: PlcConfig<V, S>,
+  config: PlcConfig<S, V>,
   title?: string,
   description?: string,
   env_prefix?: string,
-  argDictionary?: { [key: string]: ArgDictionaryItem },
+  userArgDictionary?: Record<string, ArgDictionaryItem>,
   port?: number,
-  host?: string
+  host?: string,
 ) {
-  const context = { plc: await createPlc(config) };
-  const app = await createApp(
+  const { plc } = await createPlc(config);
+  const context = { plc };
+  const app = createApp(
     title || "tentacle",
     description || "Tentacle, a modern software PLC.",
     env_prefix || "TENTACLE",
-    argDictionary || {},
+    userArgDictionary || {},
     true, //add subscriptions
-    true, //add mutations
+    false, //add mutations
     port || 4123,
     host || "0.0.0.0",
     main,
@@ -37,8 +38,7 @@ export async function createTentacle<
       return builder;
     },
     () => {},
-    context
+    context,
   );
-  app();
   return app;
 }

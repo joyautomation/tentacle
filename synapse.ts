@@ -1,4 +1,8 @@
-import { createNode, SparkplugMetric } from "@joyautomation/synapse";
+import {
+  createNode,
+  disconnectNode,
+  SparkplugMetric,
+} from "@joyautomation/synapse";
 import { Plc } from "./types/types.ts";
 import { PlcVariables, PlcVariablesRuntime } from "./types/variables.ts";
 import { PlcSources, PlcSourcesRuntime } from "./types/sources.ts";
@@ -19,8 +23,11 @@ export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
   }
 };
 
-export const variablesToMetrics = <V extends PlcVariables>(
-  variables: PlcVariablesRuntime<V>,
+export const variablesToMetrics = <
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  variables: PlcVariablesRuntime<S, V>,
 ) => {
   return Object.entries(variables).reduce((acc, [key, variable]) => {
     acc[key] = {
@@ -40,8 +47,11 @@ export const variablesToMetrics = <V extends PlcVariables>(
   }, {} as Record<string, SparkplugMetric>);
 };
 
-export function createPlcMqtt<V extends PlcVariables, S extends PlcSources>(
-  plc: Plc<V, S>,
+export function createPlcMqtt<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  plc: Plc<S, V>,
 ) {
   const {
     config: { mqtt },
@@ -68,14 +78,27 @@ export function createPlcMqtt<V extends PlcVariables, S extends PlcSources>(
     }
   }
   plc.runtime.mqtt = resultMqtt;
+  return () => destroyPlcMqtt(plc);
+}
+
+export function destroyPlcMqtt<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(
+  plc: Plc<S, V>,
+) {
+  for (const node of Object.values(plc.runtime.mqtt)) {
+    disconnectNode(node);
+  }
+  plc.runtime.mqtt = {};
   return plc;
 }
 
 export const updateMetricValues = <
-  V extends PlcVariables,
   S extends PlcSources,
+  V extends PlcVariables<S>,
 >(
-  plc: Plc<V, S>,
+  plc: Plc<S, V>,
 ) => {
   for (const [key, variable] of Object.entries(plc.runtime.variables)) {
     for (const node of Object.values(plc.runtime.mqtt)) {
