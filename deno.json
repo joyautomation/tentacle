@@ -1,4 +1,12 @@
 {
+  "name": "@joyautomation/tentacle",
+  "version": "0.0.1",
+  "description": "Tentacle is a modern soft PLC",
+  "author": "Joy Automation",
+  "license": "GPL-3.0-or-later",
+  "repository": "https://github.com/joyautomation/tentacle",
+  "homepage": "https://github.com/joyautomation/tentacle#readme",
+  "bugs": "https://github.com/joyautomation/tentacle/issues",
   "tasks": {
     "dev": "deno run --watch main.ts",
     "example": "deno run -A --watch --env=example.env example/main.ts",
