@@ -37,7 +37,7 @@ interface LeaseState {
 const defaultConfig = {
   namespace: "default",
   leaseDurationSeconds: 5, // Reduced from 15s to 5s for faster failover
-  k8sApiUrl: "http://localhost:8001",
+  k8sApiUrl: "https://kubernetes.default.svc", // Internal Kubernetes API endpoint
   podName: Deno.env.get("HOSTNAME"), // Kubernetes sets this to the pod name
 };
 
