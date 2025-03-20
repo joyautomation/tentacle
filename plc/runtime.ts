@@ -39,11 +39,7 @@ import {
   PlcVariables,
   PlcVariablesRuntime,
 } from "../types/variables.ts";
-import {
-  createModbus,
-  createModbusErrorProperties,
-  readModbus,
-} from "../modbus/client.ts";
+import { createModbusErrorProperties } from "../modbus/client.ts";
 import { addLeadershipListener, initializeLease } from "../lease/lease.ts";
 import { customAlphabet } from "nanoid";
 import {
@@ -205,12 +201,12 @@ export async function createSources<
             key,
             {
               ...source,
-              client: await createModbus(
-                source,
-                onFail(plc.runtime.variables, source),
-                onConnect(plc.runtime.variables, source),
-                onDisconnect(plc.runtime.variables, source),
-              ),
+              // client: await createModbus(
+              //   source,
+              //   onFail(plc.runtime.variables, source),
+              //   onConnect(plc.runtime.variables, source),
+              //   onDisconnect(plc.runtime.variables, source),
+              // ),
             },
           ];
         }
@@ -284,25 +280,25 @@ export function startSourceIntervals<
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
           if (isLeader(plc) && source.client?.states.connected) {
-            const result = await Promise.all(
-              Object.entries(variables).map(([_, variable]) =>
-                readModbus(
-                  variable.source.register,
-                  variable.source.registerType,
-                  variable.source.format,
-                  source.client,
-                ).then((result) => ({
-                  result,
-                  variable: variable.id,
-                }))
-              ),
-            );
-            result.forEach(({ result, variable }) => {
-              //TODO: Probably worth doing a check to make sure the right types are being set.
-              if (isSuccess<number | boolean>(result)) {
-                updateRuntimeValue(plc, variable, result.output);
-              }
-            });
+            // const result = await Promise.all(
+            //   Object.entries(variables).map(([_, variable]) =>
+            //     readModbus(
+            //       variable.source.register,
+            //       variable.source.registerType,
+            //       variable.source.format,
+            //       source.client,
+            //     ).then((result) => ({
+            //       result,
+            //       variable: variable.id,
+            //     }))
+            //   ),
+            // );
+            // result.forEach(({ result, variable }) => {
+            //   //TODO: Probably worth doing a check to make sure the right types are being set.
+            //   if (isSuccess<number | boolean>(result)) {
+            //     updateRuntimeValue(plc, variable, result.output);
+            //   }
+            // });
           }
         }, Number(rate))
       );

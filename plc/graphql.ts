@@ -26,7 +26,7 @@ import {
   PlcVariableOpcuaSourceRuntime,
 } from "../types/sources.ts";
 import { createNode, SparkplugNode } from "@joyautomation/synapse";
-import { getModbusStateString } from "../modbus/client.ts";
+// import { getModbusStateString } from "../modbus/client.ts";
 
 export function addPlcToSchema<
   S extends PlcSources,
@@ -210,7 +210,7 @@ export function addPlcToSchema<
       state: t.string({
         resolve: (parent) => {
           if (isSourceModbus(parent)) {
-            return getModbusStateString(parent.client);
+            return "unknown"; // getModbusStateString(parent.client);
           } else {
             return "Unknown";
           }
