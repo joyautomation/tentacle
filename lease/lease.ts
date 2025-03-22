@@ -59,13 +59,17 @@ const createLeaseState = (config: LeaseConfig): LeaseState => ({
   },
 });
 
-const client = Deno.createHttpClient({
-  caCerts: [
-    await Deno.readTextFile(
-      "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-    ),
-  ],
-});
+let client: Deno.HttpClient | undefined;
+
+const createClient = async () => {
+  client = Deno.createHttpClient({
+    caCerts: [
+      await Deno.readTextFile(
+        "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+      ),
+    ],
+  });
+};
 
 const getK8sHeaders = async (): Promise<Headers> => {
   const headers = new Headers({
@@ -74,7 +78,7 @@ const getK8sHeaders = async (): Promise<Headers> => {
 
   try {
     const token = await Deno.readTextFile(
-      "/var/run/secrets/kubernetes.io/serviceaccount/token",
+      "/var/run/secrets/kubernetes.io/serviceaccount/token"
     );
     headers.append("Authorization", `Bearer ${token}`);
   } catch (error) {
@@ -94,7 +98,7 @@ const getLease = async (state: LeaseState): Promise<Result<Lease | null>> => {
       {
         headers: await getK8sHeaders(),
         client,
-      },
+      }
     );
     if (response.status === 404) {
       return createSuccess(null);
@@ -144,7 +148,7 @@ const createNewLease = async (state: LeaseState): Promise<Result<Lease>> => {
         headers: await getK8sHeaders(),
         body: JSON.stringify(lease),
         client,
-      },
+      }
     );
 
     if (!response.ok) {
@@ -208,7 +212,7 @@ const updateLease = async (state: LeaseState): Promise<Result<Lease>> => {
         headers: await getK8sHeaders(),
         body: JSON.stringify(updatedLease),
         client,
-      },
+      }
     );
 
     if (response.status === 409) {
@@ -248,7 +252,7 @@ const startLeaseRenewal = (state: LeaseState): LeaseState => {
       if (!updateResult.success) {
         log.error("Failed to renew lease:", updateResult);
         log.info(
-          `${state.config.identity} lost leadership due to renewal failure`,
+          `${state.config.identity} lost leadership due to renewal failure`
         );
         handleLeadershipLoss(state);
       }
@@ -269,7 +273,7 @@ const handleLeadershipLoss = (state: LeaseState) => {
 
 const startLeaseAcquisition = (
   state: LeaseState,
-  onLeadershipLost: () => void,
+  onLeadershipLost: () => void
 ): LeaseState => {
   if (state.acquisitionTimer) {
     clearInterval(state.acquisitionTimer);
@@ -295,14 +299,14 @@ const startLeaseAcquisition = (
 
 export const tryAcquireLeadership = async (
   state: LeaseState,
-  onLeadershipLost: () => void,
+  onLeadershipLost: () => void
 ): Promise<Result<[boolean, LeaseState]>> => {
   // log.info(`${state.config.identity} attempting to acquire leadership`);
   const leaseResult = await getLease(state);
   if (!leaseResult.success) {
     log.error(
       `${state.config.identity} failed to get lease:`,
-      leaseResult.error,
+      leaseResult.error
     );
     return createFail(leaseResult);
   }
@@ -310,14 +314,14 @@ export const tryAcquireLeadership = async (
   const lease = leaseResult.output;
   if (!lease) {
     log.info(
-      `No existing lease found, ${state.config.identity} creating new lease`,
+      `No existing lease found, ${state.config.identity} creating new lease`
     );
     // No existing lease, try to create one
     const createResult = await createNewLease(state);
     if (!createResult.success) {
       log.error(
         `${state.config.identity} failed to create lease:`,
-        createResult.error,
+        createResult.error
       );
       return createFail(createResult);
     }
@@ -328,7 +332,7 @@ export const tryAcquireLeadership = async (
       currentLeaderId: state.config.identity,
     };
     log.info(
-      `${state.config.identity} successfully acquired leadership (new lease)`,
+      `${state.config.identity} successfully acquired leadership (new lease)`
     );
     const finalState = startLeaseRenewal(newState);
     handleLeadershipGain(finalState);
@@ -342,21 +346,21 @@ export const tryAcquireLeadership = async (
   const now = new Date();
   const renewTime = new Date(lease.spec.renewTime!);
   const expiryTime = new Date(
-    renewTime.getTime() + lease.spec.leaseDurationSeconds! * 1000,
+    renewTime.getTime() + lease.spec.leaseDurationSeconds! * 1000
   );
 
   if (now > expiryTime || lease.spec.holderIdentity === state.config.identity) {
     log.info(
       `${state.config.identity} attempting to take ${
         now > expiryTime ? "expired" : "existing"
-      } lease from ${lease.spec.holderIdentity}`,
+      } lease from ${lease.spec.holderIdentity}`
     );
     // Lease is expired or we already hold it, try to take it
     const updateResult = await updateLease({ ...state, currentLease: lease });
     if (!updateResult.success) {
       log.error(
         `${state.config.identity} failed to update lease:`,
-        updateResult.error,
+        updateResult.error
       );
       return createFail(updateResult);
     }
@@ -374,7 +378,7 @@ export const tryAcquireLeadership = async (
 
   if (state.retryCount === 1) {
     log.info(
-      `${state.config.identity} could not acquire leadership, current leader is ${lease.spec.holderIdentity}`,
+      `${state.config.identity} could not acquire leadership, current leader is ${lease.spec.holderIdentity}`
     );
   }
   return createSuccess([false, { ...state, isLeader: false }]);
@@ -402,7 +406,7 @@ export const isLeader = (state: LeaseState): boolean => state.isLeader;
 export const addLeadershipListener = (
   state: LeaseState,
   type: "onLeader" | "onLeaderLoss",
-  listener: () => void,
+  listener: () => void
 ) => {
   state.leadershipEventListeners[type].add(listener);
   // Return cleanup function

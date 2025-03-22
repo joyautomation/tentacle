@@ -1,12 +1,12 @@
 import {
   createNode,
   disconnectNode,
-  SparkplugMetric,
+  type SparkplugMetric,
 } from "@joyautomation/synapse";
-import { Plc } from "./types/types.ts";
-import { PlcVariables, PlcVariablesRuntime } from "./types/variables.ts";
-import { PlcSources, PlcSourcesRuntime } from "./types/sources.ts";
-import { TypeStr } from "sparkplug-payload/sparkplugPayloadProto";
+import type { Plc } from "./types/types.ts";
+import type { PlcVariables, PlcVariablesRuntime } from "./types/variables.ts";
+import type { PlcSources } from "./types/sources.ts";
+import type { TypeStr } from "sparkplug-payload/sparkplugPayloadProto";
 
 export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
   switch (datatype) {
@@ -25,9 +25,9 @@ export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
 
 export const variablesToMetrics = <
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<S>
 >(
-  variables: PlcVariablesRuntime<S, V>,
+  variables: PlcVariablesRuntime<S, V>
 ) => {
   return Object.entries(variables).reduce((acc, [key, variable]) => {
     acc[key] = {
@@ -47,11 +47,8 @@ export const variablesToMetrics = <
   }, {} as Record<string, SparkplugMetric>);
 };
 
-export function createPlcMqtt<
-  S extends PlcSources,
-  V extends PlcVariables<S>,
->(
-  plc: Plc<S, V>,
+export function createPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
+  plc: Plc<S, V>
 ) {
   const {
     config: { mqtt },
@@ -81,11 +78,8 @@ export function createPlcMqtt<
   return () => destroyPlcMqtt(plc);
 }
 
-export function destroyPlcMqtt<
-  S extends PlcSources,
-  V extends PlcVariables<S>,
->(
-  plc: Plc<S, V>,
+export function destroyPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
+  plc: Plc<S, V>
 ) {
   for (const node of Object.values(plc.runtime.mqtt)) {
     disconnectNode(node);
@@ -96,9 +90,9 @@ export function destroyPlcMqtt<
 
 export const updateMetricValues = <
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<S>
 >(
-  plc: Plc<S, V>,
+  plc: Plc<S, V>
 ) => {
   for (const [key, variable] of Object.entries(plc.runtime.variables)) {
     for (const node of Object.values(plc.runtime.mqtt)) {
