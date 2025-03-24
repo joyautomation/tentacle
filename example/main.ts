@@ -6,17 +6,16 @@ import {
   PlcVariableNumberWithModbusSource,
 } from "../types/variables.ts";
 import { AdamSources, adamSources } from "./sources/adam.ts";
+import { AnybusSources } from "./sources/anybus.ts";
 import { AdamVariables, adamVariables } from "./variables/adam.ts";
 import { customAlphabet } from "nanoid";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
 
-type Sources = {
-  // AdamSources & {
+type Sources = AdamSources & AnybusSources & {
   "codesys-mb": PlcModbusSource;
 };
 
-type Variables = {
-  //AdamVariables & {
+type Variables = AdamVariables & {
   count: PlcVariableNumber;
   // aBool: PlcVariableBoolean;
   modbusCount: PlcVariableNumberWithModbusSource<Sources>;

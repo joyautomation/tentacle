@@ -1,21 +1,7 @@
-import { PlcSources, PlcModbusSource } from "../../types/sources.ts";
-import { PlcVariableNumberWithModbusSource } from "../../types/variables.ts";
-import { AdamSources } from "../sources/adam.ts";
-
-export const adamVariable = {
-  "192.168.20.10": [
-    { id: "RGN.PID.A", description: "Regen A" },
-    { id: "RGN.OT.A", description: "Regen OT A" },
-    { id: "RGN.PID.B", description: "Regen B" },
-    { id: "RGN.OT.B", description: "Regen OT B" },
-  ],
-  "192.168.20.40": [
-    { id: "HTDL.IN", description: "Heated Line Inlet" },
-    { id: "HTDL.OUT", description: "Heated Line Outlet" },
-    { id: "HTDL.2FTIR", description: "Heated Line Sampl to FTIR" },
-    { id: "HTDL.2FID", description: "Heated Line FTIR to FID" },
-  ],
-};
+import type { PlcSources } from "../../types/sources.ts";
+import type { PlcVariableNumberWithModbusSource } from "../../types/variables.ts";
+import type { AnybusSources } from "../sources/anybus.ts";
+import { getAnybusSources } from "../sources/anybus.ts";
 
 type DPFSide = "L" | "R";
 type DPFNumber = 1 | 2 | 3 | 4 | 5;

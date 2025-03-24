@@ -1,4 +1,4 @@
-import { Result, createFail, createSuccess } from "@joyautomation/dark-matter";
+import { createFail, createSuccess, Result } from "@joyautomation/dark-matter";
 
 interface LeaseSpec {
   holderIdentity?: string;
@@ -37,7 +37,7 @@ interface LeaseState {
 const defaultConfig = {
   namespace: "default",
   leaseDurationSeconds: 5, // Reduced from 15s to 5s for faster failover
-  k8sApiUrl: "https://kubernetes.default.svc", // Internal Kubernetes API endpoint
+  k8sApiUrl: "http://localhost:8001",
   podName: Deno.env.get("HOSTNAME"), // Kubernetes sets this to the pod name
 };
 
@@ -52,7 +52,7 @@ const getLease = async (state: LeaseState): Promise<Result<Lease | null>> => {
   } = state;
   try {
     const response = await fetch(
-      `${k8sApiUrl}/apis/coordination.k8s.io/v1/namespaces/${namespace}/leases/${leaseName}`
+      `${k8sApiUrl}/apis/coordination.k8s.io/v1/namespaces/${namespace}/leases/${leaseName}`,
     );
     if (response.status === 404) {
       return createSuccess(null);
@@ -99,7 +99,7 @@ const createNewLease = async (state: LeaseState): Promise<Result<Lease>> => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(lease),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -143,7 +143,7 @@ const updateLease = async (state: LeaseState): Promise<Result<Lease>> => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(updatedLease),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -162,31 +162,34 @@ const updateLease = async (state: LeaseState): Promise<Result<Lease>> => {
   }
 };
 
-const updatePodLabels = async (state: LeaseState, isLeader: boolean): Promise<Result<void>> => {
+const updatePodLabels = async (
+  state: LeaseState,
+  isLeader: boolean,
+): Promise<Result<void>> => {
   const { config } = state;
   if (!config.podName) {
     return createSuccess(undefined); // Skip if podName not provided
   }
 
   const labels = {
-    app: 'tentacle',
-    role: isLeader ? 'leader' : 'follower'
+    app: "tentacle",
+    role: isLeader ? "leader" : "follower",
   };
 
   try {
     const response = await fetch(
       `${config.k8sApiUrl}/api/v1/namespaces/${config.namespace}/pods/${config.podName}`,
       {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/strategic-merge-patch+json',
+          "Content-Type": "application/strategic-merge-patch+json",
         },
         body: JSON.stringify({
           metadata: {
-            labels
-          }
-        })
-      }
+            labels,
+          },
+        }),
+      },
     );
 
     if (!response.ok) {
@@ -207,7 +210,7 @@ const updatePodLabels = async (state: LeaseState, isLeader: boolean): Promise<Re
 
 const startLeaseRenewal = (
   state: LeaseState,
-  onLeadershipLost: () => void
+  onLeadershipLost: () => void,
 ): LeaseState => {
   if (state.renewalTimer) {
     clearInterval(state.renewalTimer);
@@ -231,7 +234,7 @@ const startLeaseRenewal = (
 
 export const tryAcquireLeadership = async (
   state: LeaseState,
-  onLeadershipLost: () => void
+  onLeadershipLost: () => void,
 ): Promise<Result<[boolean, LeaseState]>> => {
   const leaseResult = await getLease(state);
   if (!leaseResult.success) {
@@ -265,7 +268,7 @@ export const tryAcquireLeadership = async (
   const now = new Date();
   const renewTime = new Date(lease.spec.renewTime!);
   const expiryTime = new Date(
-    renewTime.getTime() + lease.spec.leaseDurationSeconds! * 1000
+    renewTime.getTime() + lease.spec.leaseDurationSeconds! * 1000,
   );
 
   if (now > expiryTime || lease.spec.holderIdentity === state.config.identity) {
@@ -289,7 +292,7 @@ export const releaseLease = async (state: LeaseState): Promise<LeaseState> => {
   if (state.renewalTimer) {
     clearInterval(state.renewalTimer);
   }
-  
+
   // Update pod labels to remove leader status
   if (state.isLeader) {
     await updatePodLabels(state, false);
