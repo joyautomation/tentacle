@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tentacle-leader
+  namespace: default
+spec:
+  selector:
+    app: tentacle
+    role: leader
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000  # Adjust this to match your application's port
+  type: ClusterIP
