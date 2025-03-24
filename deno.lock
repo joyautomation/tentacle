@@ -11,6 +11,7 @@
     "jsr:@std/assert@^1.0.10": "1.0.11",
     "jsr:@std/assert@^1.0.11": "1.0.11",
     "jsr:@std/assert@^1.0.6": "1.0.6",
+    "jsr:@std/async@^1.0.9": "1.0.11",
     "jsr:@std/cli@^1.0.6": "1.0.6",
     "jsr:@std/data-structures@^1.0.6": "1.0.6",
     "jsr:@std/expect@^1.0.13": "1.0.13",
@@ -29,7 +30,7 @@
     "npm:graphql-scalars@^1.23.0": "1.24.1_graphql@16.9.0",
     "npm:graphql-yoga@^5.7.0": "5.7.0_graphql@16.9.0",
     "npm:long@^5.2.3": "5.3.1",
-    "npm:modbus-serial@8.0.20-no-serial-port": "8.0.20-no-serial-port",
+    "npm:modbus-serial@8.0.5-no-serial-port": "8.0.5-no-serial-port",
     "npm:mqtt@^5.10.1": "5.10.4",
     "npm:nanoid@^5.1.3": "5.1.3",
     "npm:pako@^2.1.0": "2.1.0",
@@ -92,6 +93,9 @@
         "jsr:@std/internal@^1.0.5"
       ]
     },
+    "@std/async@1.0.11": {
+      "integrity": "eee0d3405275506638a9c8efaa849cf0d35873120c69b7caa1309c9a9e5b6f85"
+    },
     "@std/cli@1.0.6": {
       "integrity": "d22d8b38c66c666d7ad1f2a66c5b122da1704f985d3c47f01129f05abb6c5d3d"
     },
@@ -139,6 +143,7 @@
       "integrity": "9bdd4ac07cb13e7594ac30e90f6ceef7254ac83a9aeaa089be0008f33aab5cd4",
       "dependencies": [
         "jsr:@std/assert@^1.0.10",
+        "jsr:@std/async",
         "jsr:@std/data-structures",
         "jsr:@std/fs@^1.0.9",
         "jsr:@std/internal@^1.0.5",
@@ -514,8 +519,8 @@
     "minimist@1.2.8": {
       "integrity": "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="
     },
-    "modbus-serial@8.0.20-no-serial-port": {
-      "integrity": "sha512-uxZxy8IHMJdbZ6HsyNQVyoKS+O/cqownqmuDUzsYM/WmsSKaY+8d8+iqJB0m/x1ku/NB89IL+IVqYudxA2dAsQ==",
+    "modbus-serial@8.0.5-no-serial-port": {
+      "integrity": "sha512-Jq/PlssSDRZtdPHUJuR56H4s6v8ljgfYeu3vrVgMV8gbDty3UGOkQxM/jDsa1wfv0/4mxtBKdet/hEF96DbJBQ==",
       "dependencies": [
         "debug"
       ]
@@ -850,7 +855,7 @@
       "jsr:@std/path@^1.0.6",
       "jsr:@std/testing@^1.0.9",
       "npm:graphql-yoga@^5.7.0",
-      "npm:modbus-serial@8.0.20-no-serial-port",
+      "npm:modbus-serial@8.0.5-no-serial-port",
       "npm:nanoid@^5.1.3",
       "npm:pothos@^0.0.1",
       "npm:ramda@~0.30.1",

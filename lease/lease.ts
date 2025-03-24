@@ -1,4 +1,8 @@
-import { createFail, createSuccess, Result } from "@joyautomation/dark-matter";
+import {
+  createFail,
+  createSuccess,
+  type Result,
+} from "@joyautomation/dark-matter";
 import { logs } from "../log.ts";
 const { main: log } = logs;
 

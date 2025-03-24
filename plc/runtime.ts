@@ -1,5 +1,5 @@
 import { isSuccess, rTry, rTryAsync } from "@joyautomation/dark-matter";
-import {
+import type {
   Plc,
   PlcConfig,
   PlcHaRuntime,
@@ -16,18 +16,14 @@ import {
   measureWait,
 } from "./performance.ts";
 import { isFail } from "@joyautomation/dark-matter";
-import {
-  createPlcMqtt,
-  destroyPlcMqtt,
-  updateMetricValues,
-} from "../synapse.ts";
+import { createPlcMqtt, updateMetricValues } from "../synapse.ts";
 import { pubsub } from "../pubsub.ts";
 import {
   isSourceModbus,
   isSourceOpcua,
-  PlcModbusSource,
-  PlcSources,
-  PlcSourcesRuntime,
+  type PlcModbusSource,
+  type PlcSources,
+  type PlcSourcesRuntime,
 } from "../types/sources.ts";
 import {
   hasModbusSource,
@@ -36,10 +32,14 @@ import {
   isVariableNumber,
   isVariableString,
   isVariableUdt,
-  PlcVariables,
-  PlcVariablesRuntime,
+  type PlcVariables,
+  type PlcVariablesRuntime,
 } from "../types/variables.ts";
-import { createModbusErrorProperties } from "../modbus/client.ts";
+import {
+  type createModbusErrorProperties,
+  createModbus,
+  readModbus,
+} from "../modbus/client.ts";
 import { addLeadershipListener, initializeLease } from "../lease/lease.ts";
 import { customAlphabet } from "nanoid";
 import {
@@ -48,7 +48,6 @@ import {
   publishVariable,
   publishVariables,
   setVariableValuesFromRedis,
-  subscribeToKeys,
 } from "../redis.ts";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
 
@@ -200,12 +199,12 @@ export async function createSources<
             key,
             {
               ...source,
-              // client: await createModbus(
-              //   source,
-              //   onFail(plc.runtime.variables, source),
-              //   onConnect(plc.runtime.variables, source),
-              //   onDisconnect(plc.runtime.variables, source),
-              // ),
+              client: await createModbus(
+                source,
+                onFail(plc.runtime.variables, source),
+                onConnect(plc.runtime.variables, source),
+                onDisconnect(plc.runtime.variables, source)
+              ),
             },
           ];
         }
@@ -278,25 +277,25 @@ export function startSourceIntervals<
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
           if (isLeader(plc) && source.client?.states.connected) {
-            // const result = await Promise.all(
-            //   Object.entries(variables).map(([_, variable]) =>
-            //     readModbus(
-            //       variable.source.register,
-            //       variable.source.registerType,
-            //       variable.source.format,
-            //       source.client,
-            //     ).then((result) => ({
-            //       result,
-            //       variable: variable.id,
-            //     }))
-            //   ),
-            // );
-            // result.forEach(({ result, variable }) => {
-            //   //TODO: Probably worth doing a check to make sure the right types are being set.
-            //   if (isSuccess<number | boolean>(result)) {
-            //     updateRuntimeValue(plc, variable, result.output);
-            //   }
-            // });
+            const result = await Promise.all(
+              Object.entries(variables).map(([_, variable]) =>
+                readModbus(
+                  variable.source.register,
+                  variable.source.registerType,
+                  variable.source.format,
+                  source.client
+                ).then((result) => ({
+                  result,
+                  variable: variable.id,
+                }))
+              )
+            );
+            result.forEach(({ result, variable }) => {
+              // TODO: Probably worth doing a check to make sure the right types are being set.
+              if (isSuccess<number | boolean>(result)) {
+                updateRuntimeValue(plc, variable, result.output);
+              }
+            });
           }
         }, Number(rate))
       );
