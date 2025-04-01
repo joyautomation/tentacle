@@ -203,7 +203,8 @@ export async function createSources<
                 source,
                 onFail(plc.runtime.variables, source),
                 onConnect(plc.runtime.variables, source),
-                onDisconnect(plc.runtime.variables, source)
+                onDisconnect(plc.runtime.variables, source),
+                source.enabled ? "connect" : "disconnect"
               ),
             },
           ];
@@ -276,7 +277,11 @@ export function startSourceIntervals<
       );
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
-          if (isLeader(plc) && source.client?.states.connected) {
+          if (
+            isLeader(plc) &&
+            source.client?.states.connected &&
+            source.enabled
+          ) {
             const result = await Promise.all(
               Object.entries(variables).map(([_, variable]) =>
                 readModbus(

@@ -1,24 +1,14 @@
 import { createTentacle } from "../index.ts";
-import { PlcModbusSource } from "../types/sources.ts";
-import {
-  PlcVariableBoolean,
-  PlcVariableNumber,
-  PlcVariableNumberWithModbusSource,
-} from "../types/variables.ts";
-import { AdamSources, adamSources } from "./sources/adam.ts";
-import { AnybusSources } from "./sources/anybus.ts";
-import { AdamVariables, adamVariables } from "./variables/adam.ts";
+import type { PlcVariableNumber } from "../types/variables.ts";
+import { ftirSources, type FtirSources } from "./sources/ftir.ts";
 import { customAlphabet } from "nanoid";
+import { type FtirVariables, ftirVariables } from "./variables/ftir.ts";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
 
-type Sources = AdamSources & AnybusSources & {
-  "codesys-mb": PlcModbusSource;
-};
+type Sources = FtirSources;
 
-type Variables = AdamVariables & {
+type Variables = FtirVariables & {
   count: PlcVariableNumber;
-  // aBool: PlcVariableBoolean;
-  modbusCount: PlcVariableNumberWithModbusSource<Sources>;
 };
 
 const main = await createTentacle<Sources, Variables>({
@@ -53,51 +43,16 @@ const main = await createTentacle<Sources, Variables>({
     },
   },
   sources: {
-    // ...adamSources,
-    "codesys-mb": {
-      id: "codesys-mb",
-      type: "modbus",
-      enabled: true,
-      name: "codesys-mb",
-      description: "Codesys Modbus connection",
-      host: `${Deno.env.get("TENTACLE_EXAMPLE_MODBUS_HOST")}`,
-      port: 502,
-      unitId: 1,
-      reverseBits: false,
-      reverseWords: false,
-      retryMinDelay: 1000,
-      retryMaxDelay: 60000,
-    },
+    ...ftirSources,
   },
   variables: {
-    // ...adamVariables,
     count: {
       id: "count",
       datatype: "number",
       description: "A counter",
       default: 0,
     },
-    // aBool: {
-    //   id: "aBool",
-    //   datatype: "boolean",
-    //   description: "A boolean",
-    //   default: false,
-    //   persistent: true,
-    // },
-    modbusCount: {
-      id: "modbusCount",
-      datatype: "number",
-      description: "A counter",
-      default: 0,
-      source: {
-        id: "codesys-mb",
-        type: "modbus",
-        register: 0,
-        registerType: "INPUT_REGISTER",
-        format: "INT16",
-        rate: 1000,
-      },
-    },
+    ...ftirVariables,
   },
 });
 

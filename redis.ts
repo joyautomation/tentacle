@@ -14,7 +14,7 @@ import {
   PlcVariables,
   PlcVariablesRuntime,
 } from "./types/variables.ts";
-import { PlcSources } from "./types/sources.ts";
+import { PlcSourceRuntime, PlcSources } from "./types/sources.ts";
 import { PlcConfig } from "./types/types.ts";
 
 let publisher: ReturnType<typeof createClient> | undefined;
@@ -145,7 +145,7 @@ export async function publishVariable<S extends PlcSources>(
   variable: PlcVariableRuntime<S>
 ) {
   const valueString = JSON.stringify(variable.value);
-  await publish(publisher, variable.id, valueString);
+  await publish(publisher, `plc.variables.${variable.id}`, valueString);
 }
 
 export async function publishVariables<
@@ -157,7 +157,7 @@ export async function publishVariables<
 ) {
   const keyValuePairs = Object.values(variables).flatMap(
     (variable: PlcVariableRuntime<S>) => [
-      variable.id,
+      `plc.variables.${variable.id}`,
       JSON.stringify(variable.value),
     ]
   );
@@ -167,10 +167,12 @@ export async function publishVariables<
 }
 
 export async function getAllValues(redis: ReturnType<typeof createClient>) {
-  const keys = await redis.keys("*");
+  const keys = await redis.keys("plc.variables.*");
   if (keys.length === 0) return {};
   const values = await redis.mGet(keys);
-  return Object.fromEntries(keys.map((key, index) => [key, values[index]]));
+  return Object.fromEntries(
+    keys.map((key, index) => [key.replace("plc.variables.", ""), values[index]])
+  );
 }
 
 export async function setVariableValuesFromRedis<
@@ -186,4 +188,27 @@ export async function setVariableValuesFromRedis<
       ? JSON.parse(values[key])
       : variable.default || null;
   });
+}
+
+export async function getSourceEnablesFromRedis<
+  S extends PlcSources,
+  V extends PlcVariables<S>
+>(redis: ReturnType<typeof createClient>) {
+  const keys = await redis.keys("plc.sources.*");
+  if (keys.length === 0) return {};
+  const values = await redis.mGet(keys);
+  return Object.fromEntries(
+    keys.map((key, index) => [key.replace("plc.sources.", ""), values[index]])
+  );
+}
+
+export async function setSourceEnable(
+  publisher: ReturnType<typeof createClient>,
+  source: PlcSourceRuntime,
+  enable: boolean
+) {
+  await publisher.set(
+    `plc.sources.${source.id}.enable`,
+    enable ? "true" : "false"
+  );
 }

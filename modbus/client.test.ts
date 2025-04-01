@@ -1,6 +1,6 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { Modbus, ModbusCreateInput } from "./types.ts";
+import { Modbus, type ModbusCreateInput } from "./types.ts";
 import { createModbus, disconnectModbus, readModbus } from "./client.ts";
 
 describe("createModbus", () => {
@@ -20,7 +20,7 @@ describe("createModbus", () => {
       0,
       Modbus.RegisterTypes.INPUT_REGISTER,
       Modbus.Formats.INT16,
-      modbus,
+      modbus
     );
     expect(value).toBe(1);
     await disconnectModbus(modbus);

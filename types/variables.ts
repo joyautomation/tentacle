@@ -1,11 +1,11 @@
 import {
   isSourceModbus,
   isSourceOpcua,
-  PlcSources,
-  WithModbusSource,
-  WithModbusSourceRuntime,
-  WithOpcuaSource,
-  WithOpcuaSourceRuntime,
+  type PlcSources,
+  type WithModbusSource,
+  type WithModbusSourceRuntime,
+  type WithOpcuaSource,
+  type WithOpcuaSourceRuntime,
 } from "./sources.ts";
 
 export type PlcVariable<S extends PlcSources> =
@@ -45,6 +45,10 @@ export type PlcVariableBase = {
 export type PlcVariableNumber = PlcVariableBase & {
   datatype: "number";
   default: number;
+  deadband?: {
+    maxTime: number;
+    value: number;
+  };
 };
 
 export type PlcVariableNumberRuntime = PlcVariableNumber & {
@@ -52,18 +56,14 @@ export type PlcVariableNumberRuntime = PlcVariableNumber & {
 };
 
 export type PlcVariableNumberWithModbusSource<S extends PlcSources> =
-  & PlcVariableNumber
-  & WithModbusSource<S>;
+  PlcVariableNumber & WithModbusSource<S>;
 export type PlcVariableNumberWithOpcuaSource<S extends PlcSources> =
-  & PlcVariableNumber
-  & WithOpcuaSource<S>;
+  PlcVariableNumber & WithOpcuaSource<S>;
 
 export type PlcVariableNumberRuntimeWithModbusSource<S extends PlcSources> =
-  & PlcVariableNumberRuntime
-  & WithModbusSource<S>;
+  PlcVariableNumberRuntime & WithModbusSource<S>;
 export type PlcVariableNumberRuntimeWithOpcuaSource<S extends PlcSources> =
-  & PlcVariableNumberRuntime
-  & WithOpcuaSource<S>;
+  PlcVariableNumberRuntime & WithOpcuaSource<S>;
 
 export type PlcVariableBoolean = PlcVariableBase & {
   datatype: "boolean";
@@ -75,18 +75,14 @@ export type PlcVariableBooleanRuntime = PlcVariableBoolean & {
 };
 
 export type PlcVariableBooleanWithModbusSource<S extends PlcSources> =
-  & PlcVariableBoolean
-  & WithModbusSource<S>;
+  PlcVariableBoolean & WithModbusSource<S>;
 export type PlcVariableBooleanWithOpcuaSource<S extends PlcSources> =
-  & PlcVariableBoolean
-  & WithOpcuaSource<S>;
+  PlcVariableBoolean & WithOpcuaSource<S>;
 
 export type PlcVariableBooleanRuntimeWithModbusSource<S extends PlcSources> =
-  & PlcVariableBooleanRuntime
-  & WithModbusSourceRuntime<S>;
+  PlcVariableBooleanRuntime & WithModbusSourceRuntime<S>;
 export type PlcVariableBooleanRuntimeWithOpcuaSource<S extends PlcSources> =
-  & PlcVariableBooleanRuntime
-  & WithOpcuaSourceRuntime<S>;
+  PlcVariableBooleanRuntime & WithOpcuaSourceRuntime<S>;
 
 export type PlcVariableString = PlcVariableBase & {
   datatype: "string";
@@ -98,18 +94,14 @@ export type PlcVariableStringRuntime = PlcVariableString & {
 };
 
 export type PlcVariableStringWithModbusSource<S extends PlcSources> =
-  & PlcVariableString
-  & WithModbusSourceRuntime<S>;
+  PlcVariableString & WithModbusSourceRuntime<S>;
 export type PlcVariableStringWithOpcuaSource<S extends PlcSources> =
-  & PlcVariableString
-  & WithOpcuaSourceRuntime<S>;
+  PlcVariableString & WithOpcuaSourceRuntime<S>;
 
 export type PlcVariableStringRuntimeWithModbusSource<S extends PlcSources> =
-  & PlcVariableStringRuntime
-  & WithModbusSourceRuntime<S>;
+  PlcVariableStringRuntime & WithModbusSourceRuntime<S>;
 export type PlcVariableStringRuntimeWithOpcuaSource<S extends PlcSources> =
-  & PlcVariableStringRuntime
-  & WithOpcuaSourceRuntime<S>;
+  PlcVariableStringRuntime & WithOpcuaSourceRuntime<S>;
 
 export type PlcVariableUdt<T> = PlcVariableBase & {
   datatype: "Template";
@@ -122,25 +114,25 @@ export type PlcVariableUdtRuntime<T> = PlcVariableUdt<T> & {
 
 export type PlcVariableUdtWithModbusSource<
   S extends PlcSources,
-  T,
+  T
 > = PlcVariableUdt<T> & WithModbusSource<S>;
 export type PlcVariableUdtWithOpcuaSource<
   S extends PlcSources,
-  T,
+  T
 > = PlcVariableUdt<T> & WithOpcuaSource<S>;
 
 export type PlcVariableUdtRuntimeWithModbusSource<
   S extends PlcSources,
-  T,
+  T
 > = PlcVariableUdtRuntime<T> & WithModbusSourceRuntime<S>;
 export type PlcVariableUdtRuntimeWithOpcuaSource<
   S extends PlcSources,
-  T,
+  T
 > = PlcVariableUdtRuntime<T> & WithOpcuaSourceRuntime<S>;
 
 export type PlcVariables<
   S extends PlcSources,
-  V extends Record<string, PlcVariable<S>> = Record<string, PlcVariable<S>>,
+  V extends Record<string, PlcVariable<S>> = Record<string, PlcVariable<S>>
 > = V;
 
 export type PlcVariablesRuntime<
@@ -148,34 +140,38 @@ export type PlcVariablesRuntime<
   V extends Record<string, PlcVariable<S>> = Record<
     string,
     PlcVariableRuntime<S>
-  >,
+  >
 > = {
-  [K in keyof V]: V[K] extends PlcVariableBoolean ? PlcVariableBooleanRuntime
-    : V[K] extends PlcVariableNumber ? PlcVariableNumberRuntime
-    : V[K] extends PlcVariableString ? PlcVariableStringRuntime
-    : V[K] extends PlcVariableUdt<infer U> ? PlcVariableUdtRuntime<U>
+  [K in keyof V]: V[K] extends PlcVariableBoolean
+    ? PlcVariableBooleanRuntime
+    : V[K] extends PlcVariableNumber
+    ? PlcVariableNumberRuntime
+    : V[K] extends PlcVariableString
+    ? PlcVariableStringRuntime
+    : V[K] extends PlcVariableUdt<infer U>
+    ? PlcVariableUdtRuntime<U>
     : V[K] extends PlcVariableNumberWithModbusSource<S>
-      ? PlcVariableNumberRuntimeWithModbusSource<S>
+    ? PlcVariableNumberRuntimeWithModbusSource<S>
     : V[K] extends PlcVariableBooleanWithModbusSource<S>
-      ? PlcVariableBooleanRuntimeWithModbusSource<S>
+    ? PlcVariableBooleanRuntimeWithModbusSource<S>
     : V[K] extends PlcVariableStringWithModbusSource<S>
-      ? PlcVariableStringRuntimeWithModbusSource<S>
+    ? PlcVariableStringRuntimeWithModbusSource<S>
     : V[K] extends PlcVariableUdtWithModbusSource<S, infer U>
-      ? PlcVariableUdtRuntimeWithModbusSource<S, U>
+    ? PlcVariableUdtRuntimeWithModbusSource<S, U>
     : V[K] extends PlcVariableNumberWithOpcuaSource<S>
-      ? PlcVariableNumberRuntimeWithOpcuaSource<S>
+    ? PlcVariableNumberRuntimeWithOpcuaSource<S>
     : V[K] extends PlcVariableBooleanWithOpcuaSource<S>
-      ? PlcVariableBooleanRuntimeWithOpcuaSource<S>
+    ? PlcVariableBooleanRuntimeWithOpcuaSource<S>
     : V[K] extends PlcVariableStringWithOpcuaSource<S>
-      ? PlcVariableStringRuntimeWithOpcuaSource<S>
+    ? PlcVariableStringRuntimeWithOpcuaSource<S>
     : V[K] extends PlcVariableUdtWithOpcuaSource<S, infer U>
-      ? PlcVariableUdtRuntimeWithOpcuaSource<S, U>
+    ? PlcVariableUdtRuntimeWithOpcuaSource<S, U>
     : never;
 };
 
 const isVariableType = <T>(
   variable: unknown,
-  datatype: string,
+  datatype: string
 ): variable is T =>
   typeof variable === "object" &&
   variable !== null &&
@@ -183,31 +179,31 @@ const isVariableType = <T>(
   variable.datatype === datatype;
 
 export const isVariableBoolean = (
-  variable: unknown,
+  variable: unknown
 ): variable is PlcVariableBoolean =>
   isVariableType<PlcVariableBoolean>(variable, "boolean");
 
 export const isVariableNumber = (
-  variable: unknown,
+  variable: unknown
 ): variable is PlcVariableNumber =>
   isVariableType<PlcVariableNumber>(variable, "number");
 
 export const isVariableString = (
-  variable: unknown,
+  variable: unknown
 ): variable is PlcVariableString =>
   isVariableType<PlcVariableString>(variable, "string");
 
 export const isVariableUdt = (
-  variable: unknown,
+  variable: unknown
 ): variable is PlcVariableUdt<unknown> =>
   isVariableType<PlcVariableUdt<unknown>>(variable, "Template");
 
 export const hasModbusSource = <S extends PlcSources>(
-  variable: unknown,
+  variable: unknown
 ): variable is WithModbusSource<S> =>
   isSourceModbus((variable as WithModbusSource<S>).source);
 
 export const hasOpcuaSource = <S extends PlcSources>(
-  variable: unknown,
+  variable: unknown
 ): variable is WithOpcuaSource<S> =>
   isSourceOpcua((variable as WithOpcuaSource<S>).source);

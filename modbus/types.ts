@@ -1,5 +1,8 @@
-import { EventEmitter } from "node:events";
-import { createModbusClient, createModbusErrorProperties } from "./client.ts";
+import type { EventEmitter } from "node:events";
+import type {
+  createModbusClient,
+  createModbusErrorProperties,
+} from "./client.ts";
 
 export const Modbus = {
   RegisterTypes: {

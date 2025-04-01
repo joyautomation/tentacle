@@ -25,6 +25,7 @@
     "@std/fs": "jsr:@std/fs@^1.0.4",
     "@std/path": "jsr:@std/path@^1.0.6",
     "@std/testing": "jsr:@std/testing@^1.0.9",
+    "graphql": "npm:graphql@^16.10.0",
     "graphql-yoga": "npm:graphql-yoga@^5.7.0",
     "modbus-serial": "npm:modbus-serial@8.0.5-no-serial-port",
     "nanoid": "npm:nanoid@^5.1.3",

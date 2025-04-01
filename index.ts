@@ -10,7 +10,7 @@ const { main } = logs;
 
 export async function createTentacle<
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<S>
 >(
   config: PlcConfig<S, V>,
   title?: string,
@@ -18,7 +18,7 @@ export async function createTentacle<
   env_prefix?: string,
   userArgDictionary?: Record<string, ArgDictionaryItem>,
   port?: number,
-  host?: string,
+  host?: string
 ) {
   const { plc } = await createPlc(config);
   const context = { plc };
@@ -28,7 +28,7 @@ export async function createTentacle<
     env_prefix || "TENTACLE",
     userArgDictionary || {},
     true, //add subscriptions
-    false, //add mutations
+    true, //add mutations
     port || 4123,
     host || "0.0.0.0",
     main,
@@ -38,7 +38,7 @@ export async function createTentacle<
       return builder;
     },
     () => {},
-    context,
+    context
   );
   return app;
 }

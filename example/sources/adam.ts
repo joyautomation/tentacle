@@ -6,7 +6,7 @@ export type AdamSources = {
   [K in `RGN_${side}`]: PlcModbusSource;
 };
 
-const generateAdamSources = (): AdamSources => {
+const getAdamSources = (): AdamSources => {
   const sides: side[] = ["P", "S"];
   return Object.fromEntries(
     sides.map((side) => [
@@ -16,8 +16,8 @@ const generateAdamSources = (): AdamSources => {
         host: `192.168.20.20${side === "P" ? 0 : 1}`,
         description: `Port Temperatures ${side}`,
       }),
-    ]),
+    ])
   ) as AdamSources;
 };
 
-export const adamSources = generateAdamSources();
+export const adamSources = getAdamSources();

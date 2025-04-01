@@ -33,7 +33,8 @@ export function createModbus(
     error: ReturnType<typeof createModbusErrorProperties>
   ) => void = () => {},
   onConnect: () => void = () => {},
-  onDisconnect: () => void = () => {}
+  onDisconnect: () => void = () => {},
+  initialState: ModbusTransition = "connect"
 ): Promise<Modbus> {
   const client = createModbusClient();
   client.setID(config.unitId);
@@ -65,7 +66,9 @@ export function createModbus(
   modbus.events.on("disconnect", () => {
     onDisconnect();
   });
-  return connectModbus(modbus);
+  return initialState === "connect"
+    ? connectModbus(modbus)
+    : Promise.resolve(modbus);
 }
 
 export const getModbusStateString = (modbus: Modbus) => {

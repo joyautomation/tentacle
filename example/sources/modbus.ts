@@ -12,7 +12,7 @@ export const getModbusConfigBase = ({
   id,
   description,
   type: "modbus",
-  enabled: true,
+  enabled: false,
   name: id,
   host,
   port: 502,

@@ -1,4 +1,4 @@
-import { Modbus, ModbusCreateInput } from "./types.ts";
+import { Modbus, type ModbusCreateInput } from "./types.ts";
 import { createModbus, disconnectModbus, readModbus } from "./client.ts";
 
 const config: ModbusCreateInput = {
@@ -35,7 +35,7 @@ try {
         0,
         Modbus.RegisterTypes.INPUT_REGISTER,
         Modbus.Formats.INT16,
-        modbus,
+        modbus
       );
     }
   }, 1000);

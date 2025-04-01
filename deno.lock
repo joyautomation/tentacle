@@ -29,6 +29,7 @@
     "npm:date-fns@^3.6.0": "3.6.0",
     "npm:graphql-scalars@^1.23.0": "1.24.1_graphql@16.9.0",
     "npm:graphql-yoga@^5.7.0": "5.7.0_graphql@16.9.0",
+    "npm:graphql@^16.10.0": "16.10.0",
     "npm:long@^5.2.3": "5.3.1",
     "npm:modbus-serial@8.0.5-no-serial-port": "8.0.5-no-serial-port",
     "npm:mqtt@^5.10.1": "5.10.4",
@@ -177,7 +178,7 @@
         "@graphql-tools/utils",
         "@graphql-typed-document-node/core",
         "@repeaterjs/repeater",
-        "graphql",
+        "graphql@16.9.0",
         "tslib",
         "value-or-promise"
       ]
@@ -186,7 +187,7 @@
       "integrity": "sha512-lbTrIuXIbUSmSumHkPRY1QX0Z8JEtmRhnIrkH7vkfeEmf0kNn/nCWvJwqokm5U7L+a+DA1wlRM4slIlbfXjJBA==",
       "dependencies": [
         "@graphql-tools/utils",
-        "graphql",
+        "graphql@16.9.0",
         "tslib"
       ]
     },
@@ -195,7 +196,7 @@
       "dependencies": [
         "@graphql-tools/merge",
         "@graphql-tools/utils",
-        "graphql",
+        "graphql@16.9.0",
         "tslib",
         "value-or-promise"
       ]
@@ -206,14 +207,14 @@
         "@graphql-typed-document-node/core",
         "cross-inspect",
         "dset",
-        "graphql",
+        "graphql@16.9.0",
         "tslib"
       ]
     },
     "@graphql-typed-document-node/core@3.2.0_graphql@16.9.0": {
       "integrity": "sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==",
       "dependencies": [
-        "graphql"
+        "graphql@16.9.0"
       ]
     },
     "@graphql-yoga/logger@2.0.0": {
@@ -244,7 +245,7 @@
     "@pothos/core@4.3.0_graphql@16.9.0": {
       "integrity": "sha512-i4nyI8wSCjxdHUomqQ2K3FH0Glklomfv4tJNifQVU9lPtQKoKaS69VxGv+fru0HAZzb1eC1XPEPN3XPCYcvZ7Q==",
       "dependencies": [
-        "graphql"
+        "graphql@16.9.0"
       ]
     },
     "@protobufjs/aspromise@1.1.2": {
@@ -471,7 +472,7 @@
     "graphql-scalars@1.24.1_graphql@16.9.0": {
       "integrity": "sha512-3L553TMPh3YpHQM4x9G4tXcyD+AX8QQOYA6tUn1nrNiWEXE0JfAnWdjoe3WGxRuGjnZrzvHDz62q8S+sSGXXwA==",
       "dependencies": [
-        "graphql",
+        "graphql@16.9.0",
         "tslib"
       ]
     },
@@ -487,10 +488,13 @@
         "@whatwg-node/fetch",
         "@whatwg-node/server",
         "dset",
-        "graphql",
+        "graphql@16.9.0",
         "lru-cache",
         "tslib"
       ]
+    },
+    "graphql@16.10.0": {
+      "integrity": "sha512-AjqGKbDGUFRKIRCP9tCKiIGHyriz2oHEbPIbEtcSLSs4YjReZOIPQQWek4+6hjw62H9QShXHyaGivGiYVLeYFQ=="
     },
     "graphql@16.9.0": {
       "integrity": "sha512-GGTKBX4SD7Wdb8mqeDLni2oaRGYQWjWHGKPQ24ZMnUtKfcsVoiv4uX8+LJr1K6U5VW2Lu1BwJnj7uiori0YtRw=="
@@ -855,6 +859,7 @@
       "jsr:@std/path@^1.0.6",
       "jsr:@std/testing@^1.0.9",
       "npm:graphql-yoga@^5.7.0",
+      "npm:graphql@^16.10.0",
       "npm:modbus-serial@8.0.5-no-serial-port",
       "npm:nanoid@^5.1.3",
       "npm:pothos@^0.0.1",
