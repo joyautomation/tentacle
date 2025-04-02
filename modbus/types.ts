@@ -4,6 +4,12 @@ import type {
   createModbusErrorProperties,
 } from "./client.ts";
 
+// Extend the TCP options type to include timeout
+export interface ExtendedTcpPortOptions {
+  port: number;
+  timeout?: number;
+}
+
 export const Modbus = {
   RegisterTypes: {
     HOLDING_REGISTER: "HOLDING_REGISTER",
@@ -30,6 +36,7 @@ export type ModbusCreateInput = {
   reverseWords: boolean;
   retryMinDelay?: number;
   retryMaxDelay?: number;
+  timeout?: number;
 };
 
 export type Modbus = ModbusCreateInput & {

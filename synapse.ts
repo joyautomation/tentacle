@@ -36,9 +36,9 @@ export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
 
 export const variablesToMetrics = <
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<S>
 >(
-  variables: PlcVariablesRuntime<S, V>,
+  variables: PlcVariablesRuntime<S, V>
 ) => {
   return Object.entries(variables).reduce(
     (acc, [key, variable]: [string, PlcVariableRuntime<S>]) => {
@@ -51,11 +51,11 @@ export const variablesToMetrics = <
           },
           ...(isPlcVariableRuntimeWithSource(variable)
             ? {
-              source: {
-                value: variable.source.id,
-                type: "String",
-              },
-            }
+                source: {
+                  value: variable.source.id,
+                  type: "String",
+                },
+              }
             : {}),
         },
         type: variableTypeToSparkplugType(variable.datatype),
@@ -67,7 +67,7 @@ export const variablesToMetrics = <
       };
       return acc;
     },
-    {} as Record<string, SparkplugMetric>,
+    {} as Record<string, SparkplugMetric>
   );
 };
 
@@ -77,10 +77,8 @@ const getStateFromSource = (source: PlcSourceRuntime) => {
     : "unknown";
 };
 
-export const sourcesToMetrics = <
-  S extends PlcSources,
->(
-  sources: PlcSourcesRuntime<S>,
+export const sourcesToMetrics = <S extends PlcSources>(
+  sources: PlcSourcesRuntime<S>
 ) => {
   return Object.entries(sources).reduce(
     (acc, [key, source]: [string, PlcSourceRuntime]) => {
@@ -99,6 +97,14 @@ export const sourcesToMetrics = <
             value: source.host,
             type: "String",
           },
+          ...(isSourceModbus(source)
+            ? {
+                error: {
+                  value: source.client.lastError?.message || null,
+                  type: "String",
+                },
+              }
+            : {}),
         },
         type: "String",
         value: () => getStateFromSource(source) || "unknown",
@@ -106,12 +112,12 @@ export const sourcesToMetrics = <
       };
       return acc;
     },
-    {} as Record<string, SparkplugMetric>,
+    {} as Record<string, SparkplugMetric>
   );
 };
 
 export function createPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>,
+  plc: Plc<S, V>
 ) {
   const {
     config: { mqtt },
@@ -145,7 +151,7 @@ export function createPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
 }
 
 export function destroyPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>,
+  plc: Plc<S, V>
 ) {
   for (const node of Object.values(plc.runtime.mqtt)) {
     disconnectNode(node);
@@ -156,9 +162,9 @@ export function destroyPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
 
 export const updateMetricValues = <
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<S>
 >(
-  plc: Plc<S, V>,
+  plc: Plc<S, V>
 ) => {
   for (const [key, variable] of Object.entries(plc.runtime.variables)) {
     for (const node of Object.values(plc.runtime.mqtt)) {

@@ -8,6 +8,7 @@ import type { ModbusRegisterType } from "./types.ts";
 import type { ModbusFormat } from "./types.ts";
 import type { ReadRegisterResult } from "./types.ts";
 import type { ReadCoilResult } from "./types.ts";
+import type { ExtendedTcpPortOptions } from "./types.ts"; // Add this line
 import {
   createErrorProperties,
   createFail,
@@ -30,11 +31,11 @@ export const createModbusClient = () => {
 export function createModbus(
   config: ModbusCreateInput,
   onFail: (
-    error: ReturnType<typeof createModbusErrorProperties>,
+    error: ReturnType<typeof createModbusErrorProperties>
   ) => void = () => {},
   onConnect: () => void = () => {},
   onDisconnect: () => void = () => {},
-  initialState: ModbusTransition = "connect",
+  initialState: ModbusTransition = "connect"
 ): Promise<Modbus> {
   const client = createModbusClient();
   client.setID(config.unitId);
@@ -85,22 +86,25 @@ export const getModbusStateString = (modbus: Modbus) => {
 
 export const setState = <U extends { states: T }, T>(
   state: Partial<T>,
-  entity: U,
+  entity: U
 ): U => {
   entity.states = { ...entity.states, ...state };
   return entity;
 };
 
 export const setStateCurry =
-  <U extends { states: T }, T>(state: Partial<T>) => (entity: U): U =>
+  <U extends { states: T }, T>(state: Partial<T>) =>
+  (entity: U): U =>
     setState(state, entity);
 
 export const modbusTransitions = {
   connect: async (modbus: Modbus) => {
     try {
+      // @ts-ignore timeout is supported by modbus-serial but not typed
       await modbus.client.connectTCP(modbus.host, {
         port: modbus.port,
-      });
+        timeout: modbus.timeout ?? 3000,
+      } as ExtendedTcpPortOptions);
       setModbusStateConnected(modbus);
       modbus.events.emit("connect");
       return modbus;
@@ -108,8 +112,7 @@ export const modbusTransitions = {
       const errorProps = isModbusError(error)
         ? createModbusErrorProperties(error)
         : createErrorProperties(error);
-      const message =
-        `Error connecting to modbus ${modbus.id}: ${errorProps.message}`;
+      const message = `Error connecting to modbus ${modbus.id}: ${errorProps.message}`;
       log.warn(message);
       return failModbus(modbus, errorProps);
     }
@@ -163,19 +166,19 @@ const onErrored = (modbus: Modbus) => {
   const currentRetry = modbus.retryCount + 1;
   const delay = Math.min(
     modbus.retryMinDelay * Math.pow(2, modbus.retryCount),
-    modbus.retryMaxDelay,
+    modbus.retryMaxDelay
   );
 
   modbus.retryTimeout = setTimeout(async () => {
     modbus.retryCount = currentRetry;
     log.info(
-      `Attempting reconnection (attempt ${currentRetry}, delay was: ${delay}ms)`,
+      `Attempting reconnection (attempt ${currentRetry}, delay was: ${delay}ms)`
     );
     try {
       await connectModbus(modbus);
     } catch (error) {
       log.warn(
-        `Reconnection attempt failed: ${createModbusErrorString(error)}`,
+        `Reconnection attempt failed: ${createModbusErrorString(error)}`
       );
       // Recursively call setModbusStateErrored to continue retrying
       failModbus(modbus, createModbusErrorProperties(error));
@@ -189,44 +192,43 @@ async function changeModbusState(
   inRequiredState: (modbus: Modbus) => boolean,
   notInRequiredStateLogText: string,
   transition: ModbusTransition,
-  modbus: Modbus,
+  modbus: Modbus
 ) {
   if (!inRequiredState(modbus)) {
     log.warn(
-      `${notInRequiredStateLogText}, it is currently: ${
-        getModbusStateString(
-          modbus,
-        )
-      }`,
+      `${notInRequiredStateLogText}, it is currently: ${getModbusStateString(
+        modbus
+      )}`
     );
   } else {
     log.info(
-      `Node ${modbus.id} making ${transition} transition from ${
-        getModbusStateString(modbus)
-      }`,
+      `Node ${
+        modbus.id
+      } making ${transition} transition from ${getModbusStateString(modbus)}`
     );
     await modbusTransitions[transition](modbus);
   }
   return modbus;
 }
 
-const changeModbusStateCurry = (
-  inRequiredState: (modbus: Modbus) => boolean,
-  notInRequiredStateLogText: string,
-  transition: ModbusTransition,
-) =>
-(modbus: Modbus) =>
-  changeModbusState(
-    inRequiredState,
-    notInRequiredStateLogText,
-    transition,
-    modbus,
-  );
+const changeModbusStateCurry =
+  (
+    inRequiredState: (modbus: Modbus) => boolean,
+    notInRequiredStateLogText: string,
+    transition: ModbusTransition
+  ) =>
+  (modbus: Modbus) =>
+    changeModbusState(
+      inRequiredState,
+      notInRequiredStateLogText,
+      transition,
+      modbus
+    );
 
 const connectModbus = changeModbusStateCurry(
   (modbus: Modbus) => modbus.states.disconnected || modbus.states.errored,
   "Modbus needs to be disconnected or errored to be connected",
-  "connect",
+  "connect"
 );
 
 /**
@@ -237,7 +239,7 @@ const connectModbus = changeModbusStateCurry(
 export const disconnectModbus = changeModbusStateCurry(
   (modbus: Modbus) => modbus.states.connected,
   "Modbus needs to be connected to be disconnected",
-  "disconnect",
+  "disconnect"
 );
 
 /**
@@ -247,14 +249,14 @@ export const disconnectModbus = changeModbusStateCurry(
  */
 export const failModbus = (
   modbus: Modbus,
-  error: ReturnType<typeof createModbusErrorProperties>,
+  error: ReturnType<typeof createModbusErrorProperties>
 ) => {
   modbus.lastError = error;
   modbus.events.emit("fail", error);
   return changeModbusStateCurry(
     () => true,
     "Modbus can fail from any state",
-    "fail",
+    "fail"
   )(modbus);
 };
 
@@ -267,16 +269,16 @@ type ModbusReadFunctions = {
 
 function getRegisterQuantity(
   registerType: ModbusRegisterType,
-  format: ModbusFormat,
+  format: ModbusFormat
 ) {
   return ["HOLDING_REGISTER", "INPUT_REGISTER"].includes(registerType) &&
-      ["UINT32", "INT32", "FLOAT", "DOUBLE"].includes(format)
+    ["UINT32", "INT32", "FLOAT", "DOUBLE"].includes(format)
     ? 2
     : 1;
 }
 
 function isReadRegisterResult(
-  result: ReadRegisterResult | ReadCoilResult,
+  result: ReadRegisterResult | ReadCoilResult
 ): result is ReadRegisterResult {
   return Array.isArray(result.data) && typeof result.data[0] === "number";
 }
@@ -284,7 +286,7 @@ function isReadRegisterResult(
 function readModbusFormatValue(
   result: ReadRegisterResult,
   format: ModbusFormat,
-  modbus: Modbus,
+  modbus: Modbus
 ): number {
   const { data } = result;
   const buffer = new ArrayBuffer(4);
@@ -297,24 +299,24 @@ function readModbusFormatValue(
     view.setInt16(
       0,
       modbus.reverseWords ? data[1] : data[0],
-      modbus.reverseBits,
+      modbus.reverseBits
     );
     view.setInt16(
       2,
       modbus.reverseWords ? data[0] : data[1],
-      modbus.reverseBits,
+      modbus.reverseBits
     );
     return view.getInt32(0, modbus.reverseBits);
   } else if (format === "FLOAT") {
     view.setInt16(
       0,
       modbus.reverseWords ? data[1] : data[0],
-      modbus.reverseBits,
+      modbus.reverseBits
     );
     view.setInt16(
       2,
       modbus.reverseWords ? data[0] : data[1],
-      modbus.reverseBits,
+      modbus.reverseBits
     );
     return view.getFloat32(0, modbus.reverseBits);
   }
@@ -343,7 +345,7 @@ export const createModbusErrorString = (error: unknown, context = ""): string =>
 
 export const createModbusErrorProperties = (
   error: unknown,
-  context = "",
+  context = ""
 ): Omit<ResultFail, "success"> & { context: string } => ({
   error: createModbusErrorString(error, context),
   context,
@@ -355,15 +357,13 @@ export async function readModbus(
   register: number,
   registerType: ModbusRegisterType,
   format: ModbusFormat,
-  modbus: Modbus,
+  modbus: Modbus
 ) {
   if (!modbus.states.connected) {
     return createFail(
-      `Cannot read modbus: Not connected (State: ${
-        getModbusStateString(
-          modbus,
-        )
-      })`,
+      `Cannot read modbus: Not connected (State: ${getModbusStateString(
+        modbus
+      )})`
     );
   }
 
