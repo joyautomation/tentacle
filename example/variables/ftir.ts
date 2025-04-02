@@ -25,7 +25,8 @@ export type FtirVariableId =
   | "THC";
 
 export type FtirVariables<S extends PlcSources = FtirSources> = {
-  [K in `FTIR.${FtirLocation}_${FtirVariableId}`]: PlcVariableNumberWithModbusSource<S>;
+  [K in `FTIR.${FtirLocation}_${FtirVariableId}`]:
+    PlcVariableNumberWithModbusSource<S>;
 };
 
 export const ftirVariableConfig = {
@@ -74,9 +75,9 @@ export const getFtirVariables = (): FtirVariables => {
             },
           };
           return [id, variable];
-        }
+        },
       );
-    })
+    }),
   ) as FtirVariables;
   return result;
 };

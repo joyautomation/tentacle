@@ -13,10 +13,10 @@ const getFtirSources = (): FtirSources => {
       `FTIR_${location}`,
       getModbusConfigBase({
         id: `FTIR_${location}`,
-        host: `192.168.20.${location === "I" ? 51 : 151}`,
+        host: `10.154.92.36`, //`192.168.20.${location === "I" ? 51 : 151}`,
         description: `FTIR ${location}`,
       }),
-    ])
+    ]),
   ) as FtirSources;
 };
 

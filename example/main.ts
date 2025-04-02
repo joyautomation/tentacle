@@ -1,13 +1,13 @@
 import { createTentacle } from "../index.ts";
 import type { PlcVariableNumber } from "../types/variables.ts";
-import { ftirSources, type FtirSources } from "./sources/ftir.ts";
+import { type FtirSources, ftirSources } from "./sources/ftir.ts";
 import { customAlphabet } from "nanoid";
 import { type FtirVariables, ftirVariables } from "./variables/ftir.ts";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
 
 type Sources = FtirSources;
 
-type Variables = FtirVariables & {
+type Variables = { // FtirVariables & {
   count: PlcVariableNumber;
 };
 
@@ -52,7 +52,7 @@ const main = await createTentacle<Sources, Variables>({
       description: "A counter",
       default: 0,
     },
-    ...ftirVariables,
+    // ...ftirVariables,
   },
 });
 
