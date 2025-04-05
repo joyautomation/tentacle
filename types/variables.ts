@@ -158,6 +158,9 @@ export type PlcVariableUdtRuntimeWithOpcuaSource<
   T,
 > = PlcVariableUdtRuntime<T> & WithOpcuaSourceRuntime<S>;
 
+/**
+ * @public
+ */
 export type PlcVariables<
   S extends PlcSources,
   V extends Record<string, PlcVariable<S>> = Record<string, PlcVariable<S>>,

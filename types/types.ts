@@ -62,6 +62,7 @@ export type PlcHaRuntime = PlcHaConfig & {
   state: LeaseState;
 };
 
+/** @public */
 export type PlcConfig<
   S extends PlcSources,
   V extends PlcVariables<S>,
