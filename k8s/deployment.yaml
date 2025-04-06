@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tentacle
+  namespace: default
+  labels:
+    app: tentacle
+spec:
+  replicas: 3 # You can adjust the number of replicas as needed
+  selector:
+    matchLabels:
+      app: tentacle
+  template:
+    metadata:
+      labels:
+        app: tentacle # Initial label, the role (leader/follower) will be added dynamically
+    spec:
+      serviceAccountName: default # Uses the default ServiceAccount that has our RBAC role
+      containers:
+        - name: tentacle
+          image: tentacle:latest # Replace with your actual image
+          ports:
+            - containerPort: 8000 # Adjust to match your application's port
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"

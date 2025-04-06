@@ -15,7 +15,7 @@ export function getLogLevel(): LogLevel {
   if (envLogLevel && envLogLevel in LogLevel) {
     return LogLevel[envLogLevel as keyof typeof LogLevel];
   }
-  return LogLevel.info;
+  return LogLevel.debug;
 }
 
 /**
