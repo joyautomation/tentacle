@@ -128,6 +128,7 @@ export type PlcSourcesRuntime<T extends PlcSources> = {
  * @public
  */
 export type PlcVariableSourceBase = {
+  id: string;
   rate: number;
 };
 
@@ -140,8 +141,7 @@ export type PlcVariableSourceBase = {
  * @property {string | null} [error.stack] - Error stack trace
  * @public
  */
-export type PlcVariableSourceRuntimeBase = {
-  id: string;
+export type PlcVariableSourceRuntimeBase = PlcVariableSourceBase & {
   error: {
     error: string | null;
     message?: string | null;
@@ -186,7 +186,7 @@ export type PlcVariableModbusSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableModbusSourceRuntime<S extends PlcSources> =
-  PlcVariableSourceRuntimeBase;
+  PlcVariableSourceRuntimeBase & PlcVariableModbusSource<S>;
 
 /**
  * Configuration for an OPC UA variable source.
@@ -213,7 +213,7 @@ export type PlcVariableOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableOpcuaSourceRuntime<S extends PlcSources> =
-  PlcVariableSourceRuntimeBase;
+  PlcVariableSourceRuntimeBase & PlcVariableOpcuaSource<S>;
 
 /**
  * Runtime configuration for a variable source.
