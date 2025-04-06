@@ -1,10 +1,5 @@
 import { isSuccess, rTry, rTryAsync } from "@joyautomation/dark-matter";
-import type {
-  Plc,
-  PlcConfig,
-  PlcHaRuntime,
-  PlcTaskRuntime,
-} from "../types/types.ts";
+import type { Plc, PlcConfig, PlcTaskRuntime } from "../types/types.ts";
 import {
   clearExecuteMeasure,
   clearWaitMeasure,
@@ -40,8 +35,6 @@ import {
   type createModbusErrorProperties,
   readModbus,
 } from "../modbus/client.ts";
-import { addLeadershipListener, initializeLease } from "../lease/lease.ts";
-import { customAlphabet } from "nanoid";
 import {
   getPublisher,
   getSubscriber,
@@ -49,13 +42,6 @@ import {
   publishVariables,
   setVariableValuesFromRedis,
 } from "../redis.ts";
-const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
-
-export function isLeader<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>
-): boolean {
-  return plc.runtime.ha?.state.isLeader ?? true;
-}
 
 export async function createRedis<
   S extends PlcSources,
@@ -76,7 +62,6 @@ export async function createPlc<
   const plc: Plc<S, V> = {
     config,
     runtime: {
-      ha: createHaRuntime(config),
       variables: createVariables(config),
       redis: config.redisUrl ? await createRedis(config) : undefined,
       tasks: {},
@@ -84,39 +69,13 @@ export async function createPlc<
       sources: {} as PlcSourcesRuntime<S>,
     },
   };
-  let stopPlc: () => void;
-  if (plc.runtime.ha?.state) {
-    addLeadershipListener(plc.runtime.ha.state, "onLeader", async () => {
-      stopPlc = await startPlc(plc);
-    });
-    addLeadershipListener(plc.runtime.ha?.state, "onLeaderLoss", () => {
-      stopPlc?.();
-    });
-  } else {
-    stopPlc = await startPlc(plc);
-  }
+  const stopPlc = await startPlc(plc);
   return {
     plc,
     stopPlc: () => {
       stopPlc?.();
     },
   };
-}
-
-export function createHaRuntime<
-  V extends PlcVariables<S>,
-  S extends PlcSources
->(config: PlcConfig<S, V>): PlcHaRuntime | undefined {
-  if (!config.ha) {
-    return undefined;
-  }
-
-  const state = initializeLease({
-    ...config.ha,
-    identity: `tentacle-${nanoid(7)}`,
-  });
-
-  return { ...config.ha, state };
 }
 
 export function createVariables<
@@ -277,11 +236,7 @@ export function startSourceIntervals<
       );
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
-          if (
-            isLeader(plc) &&
-            source.client?.states.connected &&
-            source.enabled
-          ) {
+          if (source.client?.states.connected && source.enabled) {
             const result = await Promise.all(
               Object.entries(variables).map(([_, variable]) =>
                 readModbus(
@@ -346,49 +301,47 @@ export function createTasks<S extends PlcSources, V extends PlcVariables<S>>(
           ...task,
           interval: setInterval(
             async (variables: PlcVariablesRuntime<S, V>) => {
-              if (isLeader(plc)) {
-                markWaitEnd(key);
-                markExecuteStart(key);
-                const result = await executeTask(task.program, variables);
-                if (isFail(result)) {
-                  error.error = result.error;
-                  error.message = result.message;
-                  error.stack = result.stack;
-                }
-                updateMetricValues(plc);
-                markExecuteEnd(key);
-                const measureResult = rTry(() => {
-                  clearWaitMeasure(key);
-                  measureWait(key);
-                  metrics.waitTime =
-                    performance
-                      .getEntriesByType("measure")
-                      .find((measure) => measure.name === `${key}-wait`)
-                      ?.duration || 0;
-                });
-                if (isFail(measureResult)) {
-                  if (
-                    measureResult.message !==
-                    'Cannot find mark: "main-wait-start".'
-                  ) {
-                    // log.error(JSON.stringify(measureResult));
-                  }
-                }
-                markWaitStart(key);
-                clearExecuteMeasure(key);
-                measureExecute(key);
-                metrics.executeTime =
+              markWaitEnd(key);
+              markExecuteStart(key);
+              const result = await executeTask(task.program, variables);
+              if (isFail(result)) {
+                error.error = result.error;
+                error.message = result.message;
+                error.stack = result.stack;
+              }
+              updateMetricValues(plc);
+              markExecuteEnd(key);
+              const measureResult = rTry(() => {
+                clearWaitMeasure(key);
+                measureWait(key);
+                metrics.waitTime =
                   performance
                     .getEntriesByType("measure")
-                    .find((measure) => measure.name === `${key}-execute`)
+                    .find((measure) => measure.name === `${key}-wait`)
                     ?.duration || 0;
-                pubsub.publish("plcUpdate", plc);
-                if (plc.runtime.redis) {
-                  publishVariables(
-                    plc.runtime.redis?.publisher,
-                    plc.runtime.variables
-                  );
+              });
+              if (isFail(measureResult)) {
+                if (
+                  measureResult.message !==
+                  'Cannot find mark: "main-wait-start".'
+                ) {
+                  // log.error(JSON.stringify(measureResult));
                 }
+              }
+              markWaitStart(key);
+              clearExecuteMeasure(key);
+              measureExecute(key);
+              metrics.executeTime =
+                performance
+                  .getEntriesByType("measure")
+                  .find((measure) => measure.name === `${key}-execute`)
+                  ?.duration || 0;
+              pubsub.publish("plcUpdate", plc);
+              if (plc.runtime.redis) {
+                publishVariables(
+                  plc.runtime.redis?.publisher,
+                  plc.runtime.variables
+                );
               }
             },
             task.scanRate,

@@ -3,19 +3,19 @@ import {
   createFail,
   createSuccess,
   isSuccess,
-  Result,
+  type Result,
 } from "@joyautomation/dark-matter";
 import { logs } from "./log.ts";
 const { main: log } = logs;
 
 import { createClient } from "redis";
-import {
+import type {
   PlcVariableRuntime,
   PlcVariables,
   PlcVariablesRuntime,
 } from "./types/variables.ts";
-import { PlcSourceRuntime, PlcSources } from "./types/sources.ts";
-import { PlcConfig } from "./types/types.ts";
+import type { PlcSourceRuntime, PlcSources } from "./types/sources.ts";
+import type { PlcConfig } from "./types/types.ts";
 
 let publisher: ReturnType<typeof createClient> | undefined;
 let subscriber: ReturnType<typeof createClient> | undefined;

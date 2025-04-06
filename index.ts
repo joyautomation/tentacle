@@ -1,12 +1,18 @@
 import { type ArgDictionaryItem, createApp } from "@joyautomation/conch";
 import { logs } from "./log.ts";
-import type { PlcConfig } from "./types/types.ts";
-import type { PlcSources } from "./types/sources.ts";
-import type { PlcVariables } from "./types/variables.ts";
 import { createPlc } from "./plc/runtime.ts";
 import { addPlcToSchema } from "./plc/graphql.ts";
 import { addMemoryUsageToSchema } from "./memory.ts";
+import type { PlcSources } from "./types/sources.ts";
+import type { PlcConfig } from "./types/types.ts";
+import type { PlcVariables } from "./types/variables.ts";
 const { main } = logs;
+
+export type { ArgDictionaryItem };
+export * from "./types/types.ts";
+export * from "./types/sources.ts";
+export * from "./types/variables.ts";
+export * from "./modbus/types.ts";
 
 /**
  * Creates a new Tentacle PLC instance with GraphQL API.
@@ -25,7 +31,7 @@ const { main } = logs;
  */
 export async function createTentacle<
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<S>
 >(
   config: PlcConfig<S, V>,
   title?: string,
@@ -33,7 +39,7 @@ export async function createTentacle<
   env_prefix?: string,
   userArgDictionary?: Record<string, ArgDictionaryItem>,
   port?: number,
-  host?: string,
+  host?: string
 ): Promise<() => void> {
   const { plc } = await createPlc(config);
   const context = { plc };
@@ -53,7 +59,7 @@ export async function createTentacle<
       return builder;
     },
     () => {},
-    context,
+    context
   );
   return app;
 }

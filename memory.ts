@@ -1,7 +1,7 @@
 import type { getBuilder } from "@joyautomation/conch";
-import { Plc } from "./types/types.ts";
-import { PlcVariables } from "./types/variables.ts";
-import { PlcSources } from "./types/sources.ts";
+import type { Plc } from "./types/types.ts";
+import type { PlcVariables } from "./types/variables.ts";
+import type { PlcSources } from "./types/sources.ts";
 
 export enum MemoryUsageUnits {
   BYTES,

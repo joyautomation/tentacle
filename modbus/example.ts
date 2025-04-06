@@ -31,7 +31,7 @@ try {
 
   interval = setInterval(async () => {
     if (modbus.states.connected) {
-      const value = await readModbus(
+      await readModbus(
         0,
         Modbus.RegisterTypes.INPUT_REGISTER,
         Modbus.Formats.INT16,

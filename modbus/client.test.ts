@@ -1,7 +1,7 @@
-import { describe, it } from "@std/testing/bdd";
-import { expect } from "@std/expect";
-import { Modbus, type ModbusCreateInput } from "./types.ts";
-import { createModbus, disconnectModbus, readModbus } from "./client.ts";
+// import type { describe, it } from "@std/testing/bdd";
+// import type { expect } from "@std/expect";
+// import type { Modbus, ModbusCreateInput } from "./types.ts";
+// import type { createModbus, disconnectModbus, readModbus } from "./client.ts";
 
 // describe("createModbus", () => {
 //   it("should create a modbus instance", async () => {
