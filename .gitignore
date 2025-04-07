@@ -5,3 +5,4 @@ coverage
 .env
 example*.env
 node_modules
+npm

@@ -3,18 +3,19 @@
   "version": "0.0.10",
   "description": "Tentacle is a modern soft PLC",
   "author": "Joy Automation",
-  "license": "GPL-3.0-or-later",
+  "license": "Apache-2.0",
   "repository": "https://github.com/joyautomation/tentacle",
   "homepage": "https://github.com/joyautomation/tentacle#readme",
   "bugs": "https://github.com/joyautomation/tentacle/issues",
   "exports": "./index.ts",
   "tasks": {
     "dev": "deno run --watch main.ts",
-    "example": "deno run -A --watch --env=example.env example/main.ts",
+    "example": "deno run -A --watch --env example/main.ts",
     "example1": "deno run -A --watch --env=example1.env example/main.ts",
     "example2": "deno run -A --watch --env=example2.env example/main.ts"
   },
   "imports": {
+    "@deno/dnt": "jsr:@deno/dnt@^0.41.3",
     "@joyautomation/conch": "jsr:@joyautomation/conch@^0.0.22",
     "@joyautomation/coral": "jsr:@joyautomation/coral@^0.0.12",
     "@joyautomation/dark-matter": "jsr:@joyautomation/dark-matter@^0.0.26",
@@ -32,7 +33,7 @@
     "pothos": "npm:pothos@^0.0.1",
     "ramda": "npm:ramda@^0.30.1",
     "redis": "npm:redis@^4.7.0",
-    "sparkplug-payload": "npm:sparkplug-payload@^1.0.3"
+    "sparkplug-payload": "npm:sparkplug-payload@1.0.3"
   },
   "nodeModulesDir": "auto"
 }
