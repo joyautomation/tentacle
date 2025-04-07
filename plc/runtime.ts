@@ -45,7 +45,7 @@ import {
 
 export async function createRedis<
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<S>,
 >(config: PlcConfig<S, V>) {
   const publisher = await getPublisher(config);
   const subscriber = await getSubscriber(config);
@@ -57,7 +57,7 @@ export async function createRedis<
 
 export async function createPlc<
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<S>,
 >(config: PlcConfig<S, V>) {
   const plc: Plc<S, V> = {
     config,
@@ -80,7 +80,7 @@ export async function createPlc<
 
 export function createVariables<
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<S>,
 >(config: PlcConfig<S, V>): PlcVariablesRuntime<S, V> {
   const { variables } = config;
   return Object.fromEntries(
@@ -98,56 +98,53 @@ export function createVariables<
         return [key, { ...variable, value: variable.default }];
       }
       throw new Error(`Unknown variable type: ${JSON.stringify(variable)}`);
-    })
+    }),
   ) as PlcVariablesRuntime<S, V>;
 }
 
-const onFail =
-  <S extends PlcSources, V extends PlcVariables<S>>(
-    variables: PlcVariablesRuntime<S, V>,
-    source: PlcModbusSource
-  ) =>
-  (error: ReturnType<typeof createModbusErrorProperties>) => {
-    Object.values(variables).forEach((variable) => {
-      if (variable.source?.id === source.id) {
-        variable.source.error = error;
-      }
-    });
-  };
+const onFail = <S extends PlcSources, V extends PlcVariables<S>>(
+  variables: PlcVariablesRuntime<S, V>,
+  source: PlcModbusSource,
+) =>
+(error: ReturnType<typeof createModbusErrorProperties>) => {
+  Object.values(variables).forEach((variable) => {
+    if (variable.source?.id === source.id) {
+      variable.source.error = error;
+    }
+  });
+};
 
-const onConnect =
-  <S extends PlcSources, V extends PlcVariables<S>>(
-    variables: PlcVariablesRuntime<S, V>,
-    source: PlcModbusSource
-  ) =>
-  () => {
-    Object.values(variables).forEach((variable) => {
-      if (variable.source?.id === source.id) {
-        variable.source.error = null;
-      }
-    });
-  };
+const onConnect = <S extends PlcSources, V extends PlcVariables<S>>(
+  variables: PlcVariablesRuntime<S, V>,
+  source: PlcModbusSource,
+) =>
+() => {
+  Object.values(variables).forEach((variable) => {
+    if (variable.source?.id === source.id) {
+      variable.source.error = null;
+    }
+  });
+};
 
-const onDisconnect =
-  <S extends PlcSources, V extends PlcVariables<S>>(
-    variables: PlcVariablesRuntime<S, V>,
-    source: PlcModbusSource
-  ) =>
-  () => {
-    Object.values(variables).forEach((variable) => {
-      if (variable.source?.id === source.id) {
-        variable.source.error = {
-          error: "Disconnected",
-          message: "Disconnected",
-          stack: null,
-        };
-      }
-    });
-  };
+const onDisconnect = <S extends PlcSources, V extends PlcVariables<S>>(
+  variables: PlcVariablesRuntime<S, V>,
+  source: PlcModbusSource,
+) =>
+() => {
+  Object.values(variables).forEach((variable) => {
+    if (variable.source?.id === source.id) {
+      variable.source.error = {
+        error: "Disconnected",
+        message: "Disconnected",
+        stack: null,
+      };
+    }
+  });
+};
 
 export async function createSources<
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<S>,
 >(plc: Plc<S, V>) {
   const { sources } = plc.config;
   plc.runtime.sources = Object.fromEntries(
@@ -163,7 +160,7 @@ export async function createSources<
                 onFail(plc.runtime.variables, source),
                 onConnect(plc.runtime.variables, source),
                 onDisconnect(plc.runtime.variables, source),
-                source.enabled ? "connect" : "disconnect"
+                source.enabled ? "connect" : "disconnect",
               ),
             },
           ];
@@ -172,8 +169,8 @@ export async function createSources<
           return [key, { ...source, client: null }];
         }
         throw new Error(`Unknown source type: ${JSON.stringify(source)}`);
-      })
-    )
+      }),
+    ),
   );
   const stopSourceIntervals = startSourceIntervals(plc);
   return () => {
@@ -183,20 +180,20 @@ export async function createSources<
 
 export function updateRuntimeValue<
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<S>,
 >(plc: Plc<S, V>, variableId: string, value: number | boolean) {
   plc.runtime.variables[variableId].value = value;
   if (plc.runtime.redis?.publisher) {
     publishVariable(
       plc.runtime.redis.publisher,
-      plc.runtime.variables[variableId]
+      plc.runtime.variables[variableId],
     );
   }
 }
 
 export function startSourceIntervals<
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<S>,
 >(plc: Plc<S, V>) {
   const { sources } = plc.runtime;
   Object.values(sources).forEach((source) => {
@@ -217,7 +214,7 @@ export function startSourceIntervals<
             ...variable,
             source: variable.source,
           },
-        ])
+        ]),
     ) as PlcVariablesRuntime<S, V>;
 
     if (Object.keys(sourceVariables).length > 0) {
@@ -226,13 +223,14 @@ export function startSourceIntervals<
           if (!acc[`${variable.source.rate}`]) {
             acc[`${variable.source.rate}`] = Object.fromEntries(
               Object.entries(sourceVariables).filter(
-                ([_, variable]) => variable.source.rate === variable.source.rate
-              )
+                ([_, variable]) =>
+                  variable.source.rate === variable.source.rate,
+              ),
             ) as PlcVariablesRuntime<S, V>;
           }
           return acc;
         },
-        {} as Record<string, PlcVariablesRuntime<S, V>>
+        {} as Record<string, PlcVariablesRuntime<S, V>>,
       );
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
@@ -243,12 +241,12 @@ export function startSourceIntervals<
                   variable.source.register,
                   variable.source.registerType,
                   variable.source.format,
-                  source.client
+                  source.client,
                 ).then((result) => ({
                   result,
                   variable: variable.id,
                 }))
-              )
+              ),
             );
             result.forEach(({ result, variable }) => {
               // TODO: Probably worth doing a check to make sure the right types are being set.
@@ -266,7 +264,7 @@ export function startSourceIntervals<
 
 export function stopSourceIntervals<
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<S>,
 >(plc: Plc<S, V>) {
   const { sources } = plc.runtime;
   Object.values(sources).forEach((source) => {
@@ -277,11 +275,11 @@ export function stopSourceIntervals<
 
 export const executeTask = <V extends PlcVariables<S>, S extends PlcSources>(
   task: (variables: PlcVariablesRuntime<S, V>) => Promise<void> | void,
-  variables: PlcVariablesRuntime<S, V>
+  variables: PlcVariablesRuntime<S, V>,
 ) => rTryAsync(async () => await task(variables));
 
 export function createTasks<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>
+  plc: Plc<S, V>,
 ) {
   const { tasks } = plc.config;
   plc.runtime.tasks = Object.fromEntries(
@@ -314,16 +312,15 @@ export function createTasks<S extends PlcSources, V extends PlcVariables<S>>(
               const measureResult = rTry(() => {
                 clearWaitMeasure(key);
                 measureWait(key);
-                metrics.waitTime =
-                  performance
-                    .getEntriesByType("measure")
-                    .find((measure) => measure.name === `${key}-wait`)
-                    ?.duration || 0;
+                metrics.waitTime = performance
+                  .getEntriesByType("measure")
+                  .find((measure) => measure.name === `${key}-wait`)
+                  ?.duration || 0;
               });
               if (isFail(measureResult)) {
                 if (
                   measureResult.message !==
-                  'Cannot find mark: "main-wait-start".'
+                    'Cannot find mark: "main-wait-start".'
                 ) {
                   // log.error(JSON.stringify(measureResult));
                 }
@@ -331,33 +328,32 @@ export function createTasks<S extends PlcSources, V extends PlcVariables<S>>(
               markWaitStart(key);
               clearExecuteMeasure(key);
               measureExecute(key);
-              metrics.executeTime =
-                performance
-                  .getEntriesByType("measure")
-                  .find((measure) => measure.name === `${key}-execute`)
-                  ?.duration || 0;
+              metrics.executeTime = performance
+                .getEntriesByType("measure")
+                .find((measure) => measure.name === `${key}-execute`)
+                ?.duration || 0;
               pubsub.publish("plcUpdate", plc);
               if (plc.runtime.redis) {
                 publishVariables(
                   plc.runtime.redis?.publisher,
-                  plc.runtime.variables
+                  plc.runtime.variables,
                 );
               }
             },
             task.scanRate,
-            plc.runtime.variables
+            plc.runtime.variables,
           ),
           metrics,
           error,
         },
       ];
-    })
+    }),
   );
   return () => destroyTasks(plc);
 }
 
 export function destroyTasks<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>
+  plc: Plc<S, V>,
 ) {
   Object.values(plc.runtime.tasks).forEach((task) =>
     clearInterval(task.interval)
@@ -366,12 +362,12 @@ export function destroyTasks<S extends PlcSources, V extends PlcVariables<S>>(
 }
 
 export async function startPlc<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>
+  plc: Plc<S, V>,
 ) {
   if (plc.runtime.redis) {
     setVariableValuesFromRedis(
       plc.runtime.redis?.publisher,
-      plc.runtime.variables
+      plc.runtime.variables,
     );
   }
   const destroySources = await createSources(plc);

@@ -1,4 +1,4 @@
-import { createTentacle } from "../index.ts";
+import { createTentacle, PlcVariableBoolean } from "../index.ts";
 import type { PlcVariableNumber } from "../types/variables.ts";
 import { type FtirSources, ftirSources } from "./sources/ftir.ts";
 import { customAlphabet } from "nanoid";
@@ -9,6 +9,8 @@ type Sources = FtirSources;
 type Variables = {
   // FtirVariables & {
   count: PlcVariableNumber;
+  another: PlcVariableNumber;
+  yetAnother: PlcVariableBoolean;
 };
 
 const main = await createTentacle<Sources, Variables>({
@@ -22,8 +24,19 @@ const main = await createTentacle<Sources, Variables>({
       name: "main",
       description: "The main task",
       scanRate: 1000,
-      program: (variables) => {
+      program: async (variables) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
         variables.count.value = variables.count.value + 1;
+      },
+    },
+    secondary: {
+      name: "secondary",
+      description: "The secondary task",
+      scanRate: 1000,
+      program: async (variables) => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        variables.yetAnother.value = !variables.yetAnother.value;
+        throw new Error("Something went wrong");
       },
     },
   },
@@ -51,6 +64,18 @@ const main = await createTentacle<Sources, Variables>({
       datatype: "number",
       description: "A counter",
       default: 0,
+    },
+    another: {
+      id: "another",
+      datatype: "number",
+      description: "Another counter",
+      default: 2,
+    },
+    yetAnother: {
+      id: "yetAnother",
+      datatype: "boolean",
+      description: "A boolean",
+      default: false,
     },
     // ...ftirVariables,
   },

@@ -14,7 +14,9 @@ const getFtirSources = (): FtirSources => {
       getModbusConfigBase({
         id: `FTIR_${location}`,
         host: `10.154.92.36`, //`192.168.20.${location === "I" ? 51 : 151}`,
-        description: `FTIR ${location}`,
+        description: `Fourier Transform Infrared Spectroscopy ${
+          location === "I" ? "Input" : "Output"
+        }`,
       }),
     ]),
   ) as FtirSources;

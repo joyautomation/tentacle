@@ -27,10 +27,12 @@ import {
 } from "../types/sources.ts";
 import type { createNode, SparkplugNode } from "@joyautomation/synapse";
 import { GraphQLError } from "graphql";
+import { getNodeStateString } from "https://jsr.io/@joyautomation/synapse/0.0.70/stateMachines/node.ts";
+import { getModbusStateString } from "../modbus/client.ts";
 // import { getModbusStateString } from "../modbus/client.ts";
 
 export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
-  builder: ReturnType<typeof getBuilder<{ plc: Plc<S, V> }>>
+  builder: ReturnType<typeof getBuilder<{ plc: Plc<S, V> }>>,
 ) {
   const PlcRef = builder.objectRef<Plc<S, V>>("Plc");
   const PlcConfigRef = builder.objectRef<PlcConfig<S, V>>("PlcConfig");
@@ -40,14 +42,18 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
   const PlcConfigSourcesRef = builder.objectRef<PlcSource>("PlcSourcesConfig");
 
   const PlcRuntimeRef = builder.objectRef<Plc<S, V>["runtime"]>("PlcRuntime");
-  const PlcRuntimeTaskRef =
-    builder.objectRef<PlcTaskRuntime<S, V>>("PlcTaskRuntime");
-  const PlcRuntimeTaskMetricsRef =
-    builder.objectRef<PlcTaskRuntime<S, V>["metrics"]>("PlcTaskMetrics");
-  const PlcRuntimeTaskErrorRef =
-    builder.objectRef<PlcTaskRuntime<S, V>["error"]>("PlcTaskError");
-  const PlcRuntimeVariableRef =
-    builder.objectRef<PlcVariableRuntime<S>>("PlcVariableRuntime");
+  const PlcRuntimeTaskRef = builder.objectRef<PlcTaskRuntime<S, V>>(
+    "PlcTaskRuntime",
+  );
+  const PlcRuntimeTaskMetricsRef = builder.objectRef<
+    PlcTaskRuntime<S, V>["metrics"]
+  >("PlcTaskMetrics");
+  const PlcRuntimeTaskErrorRef = builder.objectRef<
+    PlcTaskRuntime<S, V>["error"]
+  >("PlcTaskError");
+  const PlcRuntimeVariableRef = builder.objectRef<PlcVariableRuntime<S>>(
+    "PlcVariableRuntime",
+  );
   const PlcRuntimeVariableModbusSourceRef = builder.objectRef<
     PlcVariableModbusSourceRuntime<S>
   >("PlcVariableModbusSourceRuntime");
@@ -78,8 +84,9 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
   });
 
   const PlcRuntimeMqttRef = builder.objectRef<SparkplugNode>("PlcMqttRuntime");
-  const PlcRuntimeSourceRef =
-    builder.objectRef<PlcSourceRuntime>("PlcSourceRuntime");
+  const PlcRuntimeSourceRef = builder.objectRef<PlcSourceRuntime>(
+    "PlcSourceRuntime",
+  );
 
   const PlcRuntimeVariableSourceRef = builder.unionType(
     "PlcVariableSourceRuntime",
@@ -97,7 +104,7 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
         }
         return undefined;
       },
-    }
+    },
   );
 
   PlcConfigTaskRef.implement({
@@ -170,6 +177,7 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
   });
   PlcRuntimeMqttRef.implement({
     fields: (t) => ({
+      id: t.exposeString("id"),
       brokerUrl: t.exposeString("brokerUrl", {
         nullable: true,
       }),
@@ -188,6 +196,11 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
       version: t.exposeString("version", {
         nullable: true,
       }),
+      state: t.string({
+        resolve: (parent) => {
+          return getNodeStateString(parent);
+        },
+      }),
     }),
   });
   PlcRuntimeSourceRef.implement({
@@ -203,7 +216,7 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
       state: t.string({
         resolve: (parent) => {
           if (isSourceModbus(parent)) {
-            return "unknown"; // getModbusStateString(parent.client);
+            return getModbusStateString(parent.client);
           } else {
             return "Unknown";
           }
@@ -361,8 +374,7 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
       resolve: (_, _args, context) => {
         return context.plc;
       },
-    })
-  );
+    }));
   builder.mutationField("enableSource", (t) =>
     t.field({
       args: {
@@ -378,13 +390,11 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
         plc.runtime.sources[sourceId].enabled = true;
         return plc;
       },
-    })
-  );
+    }));
   builder.subscriptionField("plc", (t) =>
     t.field({
       type: PlcRef,
       subscribe: () => pubsub.subscribe("plcUpdate"),
       resolve: (payload) => payload,
-    })
-  );
+    }));
 }
