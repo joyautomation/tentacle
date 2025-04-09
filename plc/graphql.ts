@@ -391,6 +391,30 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
         return plc;
       },
     }));
+  builder.mutationField("setValue", (t) =>
+    t.field({
+      args: {
+        variableId: t.arg({ type: "String", required: true }),
+        value: t.arg({ type: "String", required: true }),
+      },
+      type: PlcRef,
+      resolve: (_, args, context) => {
+        const { variableId, value } = args;
+        const plc = context.plc;
+        if (!plc.runtime.variables[variableId]) {
+          throw new GraphQLError(`Variable ${variableId} not found`);
+        }
+        const datatype = plc.runtime.variables[variableId].datatype;
+        if (datatype === "boolean") {
+          plc.runtime.variables[variableId].value = value === "true";
+        } else if (datatype === "number") {
+          plc.runtime.variables[variableId].value = Number(value);
+        } else {
+          plc.runtime.variables[variableId].value = value;
+        }
+        return plc;
+      },
+    }));
   builder.subscriptionField("plc", (t) =>
     t.field({
       type: PlcRef,
