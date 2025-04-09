@@ -19,6 +19,7 @@ export const getModbusConfigBase = ({
   unitId: 1,
   reverseBits: false,
   reverseWords: false,
+  timeout: 3000,
   retryMinDelay: 1000,
   retryMaxDelay: 60000,
 });

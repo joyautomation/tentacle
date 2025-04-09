@@ -205,6 +205,7 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
   });
   PlcRuntimeSourceRef.implement({
     fields: (t) => ({
+      type: t.exposeString("type"),
       id: t.exposeString("id"),
       name: t.exposeString("name"),
       description: t.exposeString("description"),
