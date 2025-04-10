@@ -1,4 +1,4 @@
-import { createTentacle, PlcVariableBoolean } from "../index.ts";
+import { createTentacle, type PlcVariableBoolean } from "../index.ts";
 import type { PlcVariableNumber } from "../types/variables.ts";
 import { type FtirSources, ftirSources } from "./sources/ftir.ts";
 import { customAlphabet } from "nanoid";

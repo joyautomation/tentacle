@@ -25,9 +25,12 @@ import {
   type PlcVariableModbusSourceRuntime,
   type PlcVariableOpcuaSourceRuntime,
 } from "../types/sources.ts";
-import type { createNode, SparkplugNode } from "@joyautomation/synapse";
+import {
+  type createNode,
+  getNodeStateString,
+  type SparkplugNode,
+} from "@joyautomation/synapse";
 import { GraphQLError } from "graphql";
-import { getNodeStateString } from "https://jsr.io/@joyautomation/synapse/0.0.70/stateMachines/node.ts";
 import { getModbusStateString } from "../modbus/client.ts";
 // import { getModbusStateString } from "../modbus/client.ts";
 
