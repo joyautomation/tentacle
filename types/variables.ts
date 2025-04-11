@@ -84,7 +84,7 @@ export type PlcVariableBase = {
   publishRate?: number;
 };
 
-/**
+/**r
  * Configuration for a numeric PLC variable.
  * @public
  */
@@ -101,7 +101,7 @@ export type PlcVariableNumber = PlcVariableBase & {
  * Runtime instance of a numeric PLC variable with current value.
  * @public
  */
-export type PlcVariableNumberRuntime = PlcVariableNumber & {
+export type PlcVariableNumberRuntime = PlcVariableNumber & PlcVariableRuntimeBase & {
   value: number;
 };
 
@@ -148,7 +148,7 @@ export type PlcVariableBoolean = PlcVariableBase & {
  * Runtime instance of a boolean PLC variable with current value.
  * @public
  */
-export type PlcVariableBooleanRuntime = PlcVariableBoolean & {
+export type PlcVariableBooleanRuntime = PlcVariableBoolean & PlcVariableRuntimeBase & {
   value: boolean;
 };
 
@@ -192,10 +192,27 @@ export type PlcVariableString = PlcVariableBase & {
 };
 
 /**
+ * Base runtime configuration for a PLC variable.
+ *
+ * @property {Object} error - Error information
+ * @property {string | null} error.error - Error message
+ * @property {string | null} [error.message] - Additional error details
+ * @public
+ */
+export type PlcVariableRuntimeBase = {
+  error: {
+    error: string | null;
+    message: string | null;
+    stack: string | null;
+    timestamp: Date;
+  } | null;
+};
+
+/**
  * Runtime instance of a string PLC variable with current value.
  * @public
  */
-export type PlcVariableStringRuntime = PlcVariableString & {
+export type PlcVariableStringRuntime = PlcVariableString & PlcVariableRuntimeBase & {
   value: string;
 };
 
@@ -245,7 +262,7 @@ export type PlcVariableUdt<T> = PlcVariableBase & {
  * @template T - Type of the UDT data
  * @public
  */
-export type PlcVariableUdtRuntime<T> = PlcVariableUdt<T> & {
+export type PlcVariableUdtRuntime<T> = PlcVariableUdt<T> & PlcVariableRuntimeBase & {
   value: T;
 };
 

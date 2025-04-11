@@ -146,6 +146,7 @@ export type PlcVariableSourceRuntimeBase = PlcVariableSourceBase & {
     error: string | null;
     message?: string | null;
     stack?: string | null;
+    timestamp: Date;
   };
 };
 

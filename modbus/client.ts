@@ -13,8 +13,12 @@ import {
   createErrorProperties,
   createFail,
   createSuccess,
+  isFail,
+  isSuccess,
+  Result,
   type ResultFail,
 } from "@joyautomation/dark-matter";
+import { resolve } from "@std/path/resolve";
 const log = logs.main;
 
 export const _internals = {
@@ -258,7 +262,10 @@ export const failModbus = (
   modbus: Modbus,
   error: ReturnType<typeof createModbusErrorProperties>,
 ) => {
-  modbus.lastError = error;
+  modbus.lastError = {
+    ...error,
+    timestamp: new Date(),
+  };
   modbus.events.emit("fail", error);
   return changeModbusStateCurry(
     () => true,
@@ -367,12 +374,16 @@ export const createModbusErrorProperties = (
   name: isModbusError(error) ? error.name : undefined,
 });
 
+const timeoutPromise = (ms: number):Promise<ResultFail> => new Promise((resolve) => {
+  setTimeout(() => resolve(createFail(`Modbus request timed out after ${ms}ms`)), ms);
+});
+
 export async function readModbus(
   register: number,
   registerType: ModbusRegisterType,
   format: ModbusFormat,
   modbus: Modbus,
-) {
+): Promise<Result<number| boolean>> {
   if (!modbus.states.connected) {
     return createFail(
       `Cannot read modbus: Not connected (State: ${
@@ -382,7 +393,7 @@ export async function readModbus(
       })`,
     );
   }
-
+  
   const quantity = getRegisterQuantity(registerType, format);
   const functionMap: ModbusReadFunctions = {
     HOLDING_REGISTER: modbus.client.readHoldingRegisters.bind(modbus.client),
@@ -390,15 +401,20 @@ export async function readModbus(
     COIL: modbus.client.readCoils.bind(modbus.client),
     DISCRETE_INPUT: modbus.client.readDiscreteInputs.bind(modbus.client),
   };
+  
+  const result  = await Promise.race([functionMap[registerType](register, quantity)
+    .then((result) => createSuccess(result))
+    .catch((error) => createFail(error)),
+    timeoutPromise(3000)
+  ])
 
-  try {
-    const result = await functionMap[registerType](register, quantity);
-    return isReadRegisterResult(result)
-      ? createSuccess(readModbusFormatValue(result, format, modbus))
-      : createSuccess(result.data[0]);
-  } catch (error) {
-    const errorProps = createModbusErrorProperties(error);
-    failModbus(modbus, errorProps);
-    return createFail(errorProps);
+  if (isFail(result)) {
+    return result;
   }
+  if (isSuccess(result)) {
+    return isReadRegisterResult(result.output)
+      ? createSuccess(readModbusFormatValue(result.output, format, modbus))
+      : createSuccess(result.output.data[0]);
+  }
+    return createFail('Unknown result type');
 }

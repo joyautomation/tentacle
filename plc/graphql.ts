@@ -67,21 +67,26 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
     error: string | null;
     message?: string | null;
     stack?: string | null;
-  }>("PlcVariableError");
+    timestamp: Date;
+  } | null>("PlcVariableError");
 
   PlcRuntimeVariableErrorRef.implement({
     fields: (t) => ({
       error: t.string({
         nullable: true,
-        resolve: (parent) => parent.error,
+        resolve: (parent) => parent?.error,
       }),
       message: t.string({
         nullable: true,
-        resolve: (parent) => parent.message || null,
+        resolve: (parent) => parent?.message || null,
       }),
       stack: t.string({
         nullable: true,
-        resolve: (parent) => parent.stack || null,
+        resolve: (parent) => parent?.stack || null,
+      }),
+      timestamp: t.string({
+        nullable: true,
+        resolve: (parent) => parent?.timestamp?.toISOString() || null,
       }),
     }),
   });
@@ -277,6 +282,10 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
           }
           return null;
         },
+      }),
+      error: t.field({
+        type: PlcRuntimeVariableErrorRef,
+        resolve: (parent) => parent.error,
       }),
       source: t.field({
         type: PlcRuntimeVariableSourceRef,

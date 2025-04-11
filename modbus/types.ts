@@ -133,7 +133,9 @@ export type Modbus = ModbusCreateInput & {
     errored: boolean;
   };
   events: EventEmitter;
-  lastError: ReturnType<typeof createModbusErrorProperties> | null;
+  lastError: ReturnType<typeof createModbusErrorProperties> & {
+    timestamp: Date;
+  } | null;
   retryTimeout: number | null;
   retryCount: number;
   retryMinDelay: number;

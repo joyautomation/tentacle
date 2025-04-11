@@ -29,6 +29,7 @@ import {
   isVariableUdt,
   type PlcVariables,
   type PlcVariablesRuntime,
+  type PlcVariableRuntimeWithSource,
 } from "../types/variables.ts";
 import {
   createModbus,
@@ -42,6 +43,8 @@ import {
   publishVariables,
   setVariableValuesFromRedis,
 } from "../redis.ts";
+import { logs } from "../log.ts";
+const log = logs.main;
 
 export async function createRedis<
   S extends PlcSources,
@@ -86,16 +89,16 @@ export function createVariables<
   return Object.fromEntries(
     Object.entries(variables).map(([key, variable]) => {
       if (isVariableBoolean(variable)) {
-        return [key, { ...variable, value: variable.default }];
+        return [key, { ...variable, value: variable.default, error: null }];
       }
       if (isVariableNumber(variable)) {
-        return [key, { ...variable, value: variable.default }];
+        return [key, { ...variable, value: variable.default, error: null }];
       }
       if (isVariableString(variable)) {
-        return [key, { ...variable, value: variable.default }];
+        return [key, { ...variable, value: variable.default, error: null }];
       }
       if (isVariableUdt(variable)) {
-        return [key, { ...variable, value: variable.default }];
+        return [key, { ...variable, value: variable.default, error: null }];
       }
       throw new Error(`Unknown variable type: ${JSON.stringify(variable)}`);
     }),
@@ -191,6 +194,25 @@ export function updateRuntimeValue<
   }
 }
 
+export function updateRuntimeError<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(plc: Plc<S, V>, variableId: string, error: string) {
+  plc.runtime.variables[variableId].error = {
+    error: "Error",
+    message: error,
+    stack: null,
+    timestamp: new Date(),
+  };
+}
+
+export function clearRuntimeError<
+  S extends PlcSources,
+  V extends PlcVariables<S>,
+>(plc: Plc<S, V>, variableId: string) {
+  plc.runtime.variables[variableId].error = null;
+}
+
 export function startSourceIntervals<
   S extends PlcSources,
   V extends PlcVariables<S>,
@@ -235,25 +257,21 @@ export function startSourceIntervals<
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
           if (source.client?.states.connected && source.enabled) {
-            const result = await Promise.all(
-              Object.entries(variables).map(([_, variable]) =>
-                readModbus(
-                  variable.source.register,
-                  variable.source.registerType,
-                  variable.source.format,
-                  source.client,
-                ).then((result) => ({
-                  result,
-                  variable: variable.id,
-                }))
-              ),
-            );
-            result.forEach(({ result, variable }) => {
-              // TODO: Probably worth doing a check to make sure the right types are being set.
+            for (const [variableId, variable] of Object.entries(variables)) {
+              const result = await readModbus(
+                variable.source.register,
+                variable.source.registerType,
+                variable.source.format,
+                source.client,
+              )
               if (isSuccess<number | boolean>(result)) {
-                updateRuntimeValue(plc, variable, result.output);
+                const value = variable.source.onResponse ? variable.source.onResponse(result.output) : result.output;
+                updateRuntimeValue(plc, variableId, value);
+                clearRuntimeError(plc, variableId);
+              } else {
+                updateRuntimeError(plc, variableId, result.error);
               }
-            });
+            }
           }
         }, Number(rate))
       );
