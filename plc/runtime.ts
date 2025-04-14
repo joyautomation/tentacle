@@ -44,12 +44,14 @@ import {
   setVariableValuesFromRedis,
 } from "../redis.ts";
 import { logs } from "../log.ts";
+import { PlcMqtts } from "../types/mqtt.ts";
 const log = logs.main;
 
 export async function createRedis<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>) {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>) {
   const publisher = await getPublisher(config);
   const subscriber = await getSubscriber(config);
   if (isSuccess(publisher) && isSuccess(subscriber)) {
@@ -59,10 +61,11 @@ export async function createRedis<
 }
 
 export async function createPlc<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>) {
-  const plc: Plc<S, V> = {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>) {
+  const plc: Plc<M, S, V> = {
     config,
     runtime: {
       variables: createVariables(config),
@@ -82,9 +85,10 @@ export async function createPlc<
 }
 
 export function createVariables<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>): PlcVariablesRuntime<S, V> {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>): PlcVariablesRuntime<M, S, V> {
   const { variables } = config;
   return Object.fromEntries(
     Object.entries(variables).map(([key, variable]) => {
@@ -102,11 +106,11 @@ export function createVariables<
       }
       throw new Error(`Unknown variable type: ${JSON.stringify(variable)}`);
     }),
-  ) as PlcVariablesRuntime<S, V>;
+  ) as PlcVariablesRuntime<M, S, V>;
 }
 
-const onFail = <S extends PlcSources, V extends PlcVariables<S>>(
-  variables: PlcVariablesRuntime<S, V>,
+const onFail = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+  variables: PlcVariablesRuntime<M, S, V>,
   source: PlcModbusSource,
 ) =>
 (error: ReturnType<typeof createModbusErrorProperties>) => {
@@ -117,8 +121,8 @@ const onFail = <S extends PlcSources, V extends PlcVariables<S>>(
   });
 };
 
-const onConnect = <S extends PlcSources, V extends PlcVariables<S>>(
-  variables: PlcVariablesRuntime<S, V>,
+const onConnect = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+  variables: PlcVariablesRuntime<M, S, V>,
   source: PlcModbusSource,
 ) =>
 () => {
@@ -129,8 +133,8 @@ const onConnect = <S extends PlcSources, V extends PlcVariables<S>>(
   });
 };
 
-const onDisconnect = <S extends PlcSources, V extends PlcVariables<S>>(
-  variables: PlcVariablesRuntime<S, V>,
+const onDisconnect = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+  variables: PlcVariablesRuntime<M, S, V>,
   source: PlcModbusSource,
 ) =>
 () => {
@@ -146,9 +150,10 @@ const onDisconnect = <S extends PlcSources, V extends PlcVariables<S>>(
 };
 
 export async function createSources<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(plc: Plc<S, V>) {
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>) {
   const { sources } = plc.config;
   plc.runtime.sources = Object.fromEntries(
     await Promise.all(
@@ -182,9 +187,10 @@ export async function createSources<
 }
 
 export function updateRuntimeValue<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(plc: Plc<S, V>, variableId: string, value: number | boolean) {
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>, variableId: string, value: number | boolean) {
   plc.runtime.variables[variableId].value = value;
   if (plc.runtime.redis?.publisher) {
     publishVariable(
@@ -195,9 +201,10 @@ export function updateRuntimeValue<
 }
 
 export function updateRuntimeError<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(plc: Plc<S, V>, variableId: string, error: string) {
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>, variableId: string, error: string) {
   plc.runtime.variables[variableId].error = {
     error: "Error",
     message: error,
@@ -207,16 +214,18 @@ export function updateRuntimeError<
 }
 
 export function clearRuntimeError<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(plc: Plc<S, V>, variableId: string) {
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>, variableId: string) {
   plc.runtime.variables[variableId].error = null;
 }
 
 export function startSourceIntervals<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(plc: Plc<S, V>) {
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>) {
   const { sources } = plc.runtime;
   Object.values(sources).forEach((source) => {
     const sourceVariables = Object.fromEntries(
@@ -237,22 +246,22 @@ export function startSourceIntervals<
             source: variable.source,
           },
         ]),
-    ) as PlcVariablesRuntime<S, V>;
+    ) as PlcVariablesRuntime<M, S, V>;
 
     if (Object.keys(sourceVariables).length > 0) {
       const rates = Object.values(sourceVariables).reduce(
-        (acc: Record<string, PlcVariablesRuntime<S, V>>, variable) => {
+        (acc: Record<string, PlcVariablesRuntime<M, S, V>>, variable) => {
           if (!acc[`${variable.source.rate}`]) {
             acc[`${variable.source.rate}`] = Object.fromEntries(
               Object.entries(sourceVariables).filter(
                 ([_, variable]) =>
                   variable.source.rate === variable.source.rate,
               ),
-            ) as PlcVariablesRuntime<S, V>;
+            ) as PlcVariablesRuntime<M, S, V>;
           }
           return acc;
         },
-        {} as Record<string, PlcVariablesRuntime<S, V>>,
+        {} as Record<string, PlcVariablesRuntime<M, S, V>>,
       );
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
@@ -281,9 +290,10 @@ export function startSourceIntervals<
 }
 
 export function stopSourceIntervals<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(plc: Plc<S, V>) {
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>) {
   const { sources } = plc.runtime;
   Object.values(sources).forEach((source) => {
     source.intervals.forEach((interval) => clearInterval(interval));
@@ -291,22 +301,22 @@ export function stopSourceIntervals<
   return plc;
 }
 
-export const executeTask = <V extends PlcVariables<S>, S extends PlcSources>(
-  task: (variables: PlcVariablesRuntime<S, V>) => Promise<void> | void,
-  variables: PlcVariablesRuntime<S, V>,
+export const executeTask = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+  task: (variables: PlcVariablesRuntime<M, S, V>) => Promise<void> | void,
+  variables: PlcVariablesRuntime<M, S, V>,
 ) => rTryAsync(async () => await task(variables));
 
-export function createTasks<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>,
+export function createTasks<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+  plc: Plc<M, S, V>,
 ) {
   const { tasks } = plc.config;
   plc.runtime.tasks = Object.fromEntries(
     Object.entries(tasks).map(([key, task]) => {
-      const metrics: PlcTaskRuntime<S, V>["metrics"] = {
+      const metrics: PlcTaskRuntime<M, S, V>["metrics"] = {
         waitTime: 0,
         executeTime: 0,
       };
-      const error: PlcTaskRuntime<S, V>["error"] = {
+      const error: PlcTaskRuntime<M, S, V>["error"] = {
         error: null,
         message: null,
         stack: null,
@@ -316,7 +326,7 @@ export function createTasks<S extends PlcSources, V extends PlcVariables<S>>(
         {
           ...task,
           interval: setInterval(
-            async (variables: PlcVariablesRuntime<S, V>) => {
+            async (variables: PlcVariablesRuntime<M, S, V>) => {
               markWaitEnd(key);
               markExecuteStart(key);
               const result = await executeTask(task.program, variables);
@@ -370,8 +380,8 @@ export function createTasks<S extends PlcSources, V extends PlcVariables<S>>(
   return () => destroyTasks(plc);
 }
 
-export function destroyTasks<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>,
+export function destroyTasks<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+  plc: Plc<M, S, V>,
 ) {
   Object.values(plc.runtime.tasks).forEach((task) =>
     clearInterval(task.interval)
@@ -379,8 +389,8 @@ export function destroyTasks<S extends PlcSources, V extends PlcVariables<S>>(
   return plc;
 }
 
-export async function startPlc<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>,
+export async function startPlc<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+  plc: Plc<M, S, V>,
 ) {
   if (plc.runtime.redis) {
     setVariableValuesFromRedis(
