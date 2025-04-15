@@ -23,13 +23,14 @@ import {
 import {
   hasModbusSource,
   hasOpcuaSource,
+  hasRestSource,
   isVariableBoolean,
   isVariableNumber,
   isVariableString,
   isVariableUdt,
+  type PlcVariableRuntimeWithSource,
   type PlcVariables,
   type PlcVariablesRuntime,
-  type PlcVariableRuntimeWithSource,
 } from "../types/variables.ts";
 import {
   createModbus,
@@ -45,6 +46,7 @@ import {
 } from "../redis.ts";
 import { logs } from "../log.ts";
 import { PlcMqtts } from "../types/mqtt.ts";
+import { sendRestRequest } from "../rest.ts";
 const log = logs.main;
 
 export async function createRedis<
@@ -73,6 +75,7 @@ export async function createPlc<
       tasks: {},
       mqtt: {},
       sources: {} as PlcSourcesRuntime<S>,
+      restSourceIntervals: {} as Record<string, ReturnType<typeof setInterval>>,
     },
   };
   const stopPlc = await startPlc(plc);
@@ -109,45 +112,48 @@ export function createVariables<
   ) as PlcVariablesRuntime<M, S, V>;
 }
 
-const onFail = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
-  variables: PlcVariablesRuntime<M, S, V>,
-  source: PlcModbusSource,
-) =>
-(error: ReturnType<typeof createModbusErrorProperties>) => {
-  Object.values(variables).forEach((variable) => {
-    if (variable.source?.id === source.id) {
-      variable.source.error = error;
-    }
-  });
-};
+const onFail =
+  <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+    variables: PlcVariablesRuntime<M, S, V>,
+    source: PlcModbusSource,
+  ) =>
+  (error: ReturnType<typeof createModbusErrorProperties>) => {
+    Object.values(variables).forEach((variable) => {
+      if (variable.source?.id === source.id) {
+        variable.source.error = error;
+      }
+    });
+  };
 
-const onConnect = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
-  variables: PlcVariablesRuntime<M, S, V>,
-  source: PlcModbusSource,
-) =>
-() => {
-  Object.values(variables).forEach((variable) => {
-    if (variable.source?.id === source.id) {
-      variable.source.error = null;
-    }
-  });
-};
+const onConnect =
+  <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+    variables: PlcVariablesRuntime<M, S, V>,
+    source: PlcModbusSource,
+  ) =>
+  () => {
+    Object.values(variables).forEach((variable) => {
+      if (variable.source?.id === source.id) {
+        variable.source.error = null;
+      }
+    });
+  };
 
-const onDisconnect = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
-  variables: PlcVariablesRuntime<M, S, V>,
-  source: PlcModbusSource,
-) =>
-() => {
-  Object.values(variables).forEach((variable) => {
-    if (variable.source?.id === source.id) {
-      variable.source.error = {
-        error: "Disconnected",
-        message: "Disconnected",
-        stack: null,
-      };
-    }
-  });
-};
+const onDisconnect =
+  <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+    variables: PlcVariablesRuntime<M, S, V>,
+    source: PlcModbusSource,
+  ) =>
+  () => {
+    Object.values(variables).forEach((variable) => {
+      if (variable.source?.id === source.id) {
+        variable.source.error = {
+          error: "Disconnected",
+          message: "Disconnected",
+          stack: null,
+        };
+      }
+    });
+  };
 
 export async function createSources<
   M extends PlcMqtts,
@@ -221,6 +227,64 @@ export function clearRuntimeError<
   plc.runtime.variables[variableId].error = null;
 }
 
+export const getRestRates = <
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(variables: PlcVariablesRuntime<M, S, V>) =>
+  Object.values(variables).filter((variable) => hasRestSource(variable)).reduce(
+    (acc: Record<string, PlcVariablesRuntime<M, S, V>>, variable) => {
+      if (!acc[`${variable.source.rate}`]) {
+        acc[`${variable.source.rate}`] = Object.fromEntries(
+          Object.entries(variables).filter(
+            ([_, v]) =>
+              hasRestSource(v) && v.source.rate === variable.source.rate,
+          ),
+        ) as PlcVariablesRuntime<M, S, V>;
+      }
+      return acc;
+    },
+    {} as Record<string, PlcVariablesRuntime<M, S, V>>,
+  );
+
+export function startRestSourceIntervals<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>) {
+  const rates = getRestRates(plc.runtime.variables);
+  Object.entries(rates).forEach(([rate, variables]) => {
+    const interval = setInterval(async () => {
+      for (const [variableId, variable] of Object.entries(variables)) {
+        if (hasRestSource(variable)) {
+          const result = await sendRestRequest(
+            variable.source.url,
+            variable.source.method,
+            variable.source.headers,
+            variable.source.body(variable.value),
+            variable.source.timeout,
+          );
+          if (isSuccess(result)) {
+            if (variable.source.setFromResponse) {
+              const value = variable.source.onResponse
+                ? variable.source.onResponse(result.output, variable)
+                : result.output;
+              updateRuntimeValue(plc, variableId, value);
+            }
+            clearRuntimeError(plc, variableId);
+          } else {
+            updateRuntimeError(plc, variableId, result.error);
+          }
+        }
+      }
+    }, Number(rate));
+    return interval;
+  });
+  return () => {
+    stopRestSourceIntervals(plc);
+  };
+}
+
 export function startSourceIntervals<
   M extends PlcMqtts,
   S extends PlcSources,
@@ -254,8 +318,7 @@ export function startSourceIntervals<
           if (!acc[`${variable.source.rate}`]) {
             acc[`${variable.source.rate}`] = Object.fromEntries(
               Object.entries(sourceVariables).filter(
-                ([_, variable]) =>
-                  variable.source.rate === variable.source.rate,
+                ([_, v]) => variable.source.rate === v.source.rate,
               ),
             ) as PlcVariablesRuntime<M, S, V>;
           }
@@ -265,20 +328,24 @@ export function startSourceIntervals<
       );
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
-          if (source.client?.states.connected && source.enabled) {
-            for (const [variableId, variable] of Object.entries(variables)) {
-              const result = await readModbus(
-                variable.source.register,
-                variable.source.registerType,
-                variable.source.format,
-                source.client,
-              )
-              if (isSuccess<number | boolean>(result)) {
-                const value = variable.source.onResponse ? variable.source.onResponse(result.output) : result.output;
-                updateRuntimeValue(plc, variableId, value);
-                clearRuntimeError(plc, variableId);
-              } else {
-                updateRuntimeError(plc, variableId, result.error);
+          for (const [variableId, variable] of Object.entries(variables)) {
+            if (hasModbusSource(variable)) {
+              if (source.client?.states.connected && source.enabled) {
+                const result = await readModbus(
+                  variable.source.register,
+                  variable.source.registerType,
+                  variable.source.format,
+                  source.client,
+                );
+                if (isSuccess(result)) {
+                  const value = variable.source.onResponse
+                    ? variable.source.onResponse(result.output)
+                    : result.output;
+                  updateRuntimeValue(plc, variableId, value);
+                  clearRuntimeError(plc, variableId);
+                } else {
+                  updateRuntimeError(plc, variableId, result.error);
+                }
               }
             }
           }
@@ -301,12 +368,32 @@ export function stopSourceIntervals<
   return plc;
 }
 
-export const executeTask = <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+export function stopRestSourceIntervals<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(plc: Plc<M, S, V>) {
+  const { restSourceIntervals } = plc.runtime;
+  Object.values(restSourceIntervals).forEach((interval) =>
+    clearInterval(interval)
+  );
+  return plc;
+}
+
+export const executeTask = <
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(
   task: (variables: PlcVariablesRuntime<M, S, V>) => Promise<void> | void,
   variables: PlcVariablesRuntime<M, S, V>,
 ) => rTryAsync(async () => await task(variables));
 
-export function createTasks<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+export function createTasks<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(
   plc: Plc<M, S, V>,
 ) {
   const { tasks } = plc.config;
@@ -380,7 +467,11 @@ export function createTasks<M extends PlcMqtts, S extends PlcSources, V extends 
   return () => destroyTasks(plc);
 }
 
-export function destroyTasks<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+export function destroyTasks<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(
   plc: Plc<M, S, V>,
 ) {
   Object.values(plc.runtime.tasks).forEach((task) =>
@@ -389,7 +480,11 @@ export function destroyTasks<M extends PlcMqtts, S extends PlcSources, V extends
   return plc;
 }
 
-export async function startPlc<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+export async function startPlc<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(
   plc: Plc<M, S, V>,
 ) {
   if (plc.runtime.redis) {
@@ -399,9 +494,11 @@ export async function startPlc<M extends PlcMqtts, S extends PlcSources, V exten
     );
   }
   const destroySources = await createSources(plc);
+  const destroyRestSources = startRestSourceIntervals(plc);
   const destroyPlcMqtt = createPlcMqtt(plc);
   const destroyTasks = createTasks(plc);
   return () => {
+    destroyRestSources();
     destroySources();
     destroyPlcMqtt();
     destroyTasks();

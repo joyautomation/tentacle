@@ -15,7 +15,11 @@ import type { PlcMqtts } from "./mqtt.ts";
  * @property {number} scanRate - Scan rate for the task
  * @property {(variables: PlcVariablesRuntime<S, V>) => Promise<void> | void} program - Task program
  */
-export type PlcTask<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M,S>> = {
+export type PlcTask<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = {
   name: string;
   description: string;
   scanRate: number;
@@ -28,7 +32,11 @@ export type PlcTask<M extends PlcMqtts, S extends PlcSources, V extends PlcVaria
  * @template S - Type extending PlcSources defining available PLC sources
  * @template V - Type extending PlcVariables defining available PLC variables
  */
-export type PlcTasks<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M,S>> = Record<
+export type PlcTasks<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = Record<
   string,
   PlcTaskRuntime<M, S, V>
 >;
@@ -46,7 +54,7 @@ export type PlcTasks<M extends PlcMqtts, S extends PlcSources, V extends PlcVari
 export type PlcTaskRuntime<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M,S>
+  V extends PlcVariables<M, S>,
 > = PlcTask<M, S, V> & {
   interval: number;
   metrics: { waitTime: number; executeTime: number };
@@ -66,7 +74,7 @@ export type PlcTaskRuntime<
 export type PlcTasksRuntime<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M,S>
+  V extends PlcVariables<M, S>,
 > = Record<string, PlcTaskRuntime<M, S, V>>;
 
 /**
@@ -82,7 +90,11 @@ export type PlcTasksRuntime<
  * @property {V} variables - Variable configurations for the PLC
  * @public
  */
-export type PlcConfig<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M,S>> = {
+export type PlcConfig<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = {
   redisUrl?: string;
   tasks: Record<string, PlcTask<M, S, V>>;
   mqtt: M;
@@ -107,7 +119,11 @@ export type PlcConfig<M extends PlcMqtts, S extends PlcSources, V extends PlcVar
  * @property {PlcSourcesRuntime<S>} runtime.sources - Runtime source states
  * @public
  */
-export type Plc<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M,S>> = {
+export type Plc<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = {
   config: PlcConfig<M, S, V>;
   runtime: {
     redis?: {
@@ -118,6 +134,7 @@ export type Plc<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables
     variables: PlcVariablesRuntime<M, S, V>;
     mqtt: Record<string, SparkplugNode>;
     sources: PlcSourcesRuntime<S>;
+    restSourceIntervals: Record<string, ReturnType<typeof setInterval>>;
   };
 };
 

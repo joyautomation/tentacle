@@ -184,7 +184,7 @@ export type PlcVariableModbusSource<S extends PlcSources> =
       }[keyof S];
     type: "modbus";
     bidirectional?: boolean;
-    onResponse?: (value: string) => number;
+    onResponse?: (value: string | boolean | number) => number;
     onSend?: (value: number) => number;
     register: number;
     registerType: ModbusRegisterType;

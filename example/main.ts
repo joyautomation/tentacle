@@ -5,7 +5,12 @@ import {
   PlcVariableNumberWithMqttSource,
 } from "../index.ts";
 import { MqttConnection } from "../types/mqtt.ts";
-import type { PlcVariableNumber } from "../types/variables.ts";
+import type {
+  PlcVariableBooleanWithRestSource,
+  PlcVariableNumber,
+  PlcVariableNumberRuntimeWithRestSource,
+  PlcVariableNumberWithRestSource,
+} from "../types/variables.ts";
 import { type FtirSources, ftirSources } from "./sources/ftir.ts";
 import { customAlphabet } from "nanoid";
 import { pipe } from "@joyautomation/dark-matter";
@@ -23,6 +28,7 @@ type Variables = {
   another: PlcVariableNumber;
   yetAnother: PlcVariableBoolean;
   temperature: PlcVariableNumberWithMqttSource<Mqtts>;
+  output: PlcVariableBooleanWithRestSource;
 };
 
 const hexToValue = (hexString: string) =>
@@ -40,6 +46,18 @@ const hexToValue = (hexString: string) =>
     // },
     (value: number) => value / 10,
   );
+
+function numberToHexString(num?: number | boolean | string): string {
+  // Convert number to a hex string
+  let hexString = num?.toString(16) || "00";
+
+  // Pad with leading zeros to ensure it's 2 characters long
+  while (hexString.length < 2) {
+    hexString = "0" + hexString;
+  }
+
+  return hexString.toUpperCase(); // Convert to uppercase for consistency
+}
 
 const main = await createTentacle<Mqtts, Sources, Variables>({
   redisUrl: `redis://${Deno.env.get("TENTACLE_EXAMPLE_REDIS_HOST")}:6379`,
@@ -87,6 +105,36 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
     // ...ftirSources,
   },
   variables: {
+    output: {
+      id: "output",
+      datatype: "boolean",
+      description: "Output",
+      default: false,
+      source: {
+        type: "rest",
+        rate: 1000,
+        url:
+          "http://192.168.82.12/iolinkmaster/port[3]/iolinkdevice/pdout/getdata",
+        method: "GET",
+        headers: {},
+        setFromResponse: true,
+        body: (value) => {
+          return JSON.stringify({
+            code: "request",
+            cid: 10,
+            adr: `iolinkmaster/port[3]/iolinkdevice/pdout/getdata`,
+            data: {
+              newvalue: numberToHexString(value ? 1 : 0),
+            },
+          });
+        },
+        onResponse: (response, variable) => {
+          const { data: { value } } = response;
+          return value === "01";
+        },
+        timeout: 10000,
+      },
+    },
     count: {
       id: "count",
       datatype: "number",

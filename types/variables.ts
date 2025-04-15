@@ -1,5 +1,10 @@
 import { isSourceMqtt } from "./mqtt.ts";
-import type { PlcMqtts, WithMqttSource, WithMqttSourceRuntime } from "./mqtt.ts";
+import type {
+  PlcMqtts,
+  WithMqttSource,
+  WithMqttSourceRuntime,
+} from "./mqtt.ts";
+import { isSourceRest, WithRestSource, WithRestSourceRuntime } from "./rest.ts";
 import {
   isSourceModbus,
   isSourceOpcua,
@@ -15,7 +20,7 @@ import {
  * @template S - Type extending PlcSources defining available PLC sources
  * @public
  */
-export type PlcVariable<M extends PlcMqtts,S extends PlcSources> =
+export type PlcVariable<M extends PlcMqtts, S extends PlcSources> =
   | PlcVariableNumber
   | PlcVariableBoolean
   | PlcVariableString
@@ -31,7 +36,11 @@ export type PlcVariable<M extends PlcMqtts,S extends PlcSources> =
   | PlcVariableNumberWithMqttSource<M>
   | PlcVariableBooleanWithMqttSource<M>
   | PlcVariableStringWithMqttSource<M>
-  | PlcVariableUdtWithMqttSource<M, unknown>;
+  | PlcVariableUdtWithMqttSource<M, unknown>
+  | PlcVariableNumberWithRestSource
+  | PlcVariableBooleanWithRestSource
+  | PlcVariableStringWithRestSource
+  | PlcVariableUdtWithRestSource<unknown>;
 
 /**
  * Represents a runtime instance of a PLC variable with current value.
@@ -55,7 +64,11 @@ export type PlcVariableRuntime<M extends PlcMqtts, S extends PlcSources> =
   | PlcVariableNumberRuntimeWithMqttSource<M>
   | PlcVariableBooleanRuntimeWithMqttSource<M>
   | PlcVariableStringRuntimeWithMqttSource<M>
-  | PlcVariableUdtRuntimeWithMqttSource<M, unknown>;
+  | PlcVariableUdtRuntimeWithMqttSource<M, unknown>
+  | PlcVariableNumberRuntimeWithRestSource
+  | PlcVariableBooleanRuntimeWithRestSource
+  | PlcVariableStringRuntimeWithRestSource
+  | PlcVariableUdtRuntimeWithRestSource<unknown>;
 
 /**
  * Type guard to check if a PLC variable has an associated source configuration (Modbus or OPC UA).
@@ -64,8 +77,12 @@ export type PlcVariableRuntime<M extends PlcMqtts, S extends PlcSources> =
  * @returns True if the variable has either a Modbus or OPC UA source configuration
  * @public
  */
-export function isPlcVariableRuntimeWithSource<M extends PlcMqtts, S extends PlcSources, V extends PlcVariable<M, S>>(
-  variable: unknown
+export function isPlcVariableRuntimeWithSource<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariable<M, S>,
+>(
+  variable: unknown,
 ): variable is PlcVariableRuntimeWithSource<M, S, V> {
   return hasModbusSource(variable) || hasOpcuaSource(variable);
 }
@@ -75,7 +92,11 @@ export function isPlcVariableRuntimeWithSource<M extends PlcMqtts, S extends Plc
  * @template S - Type extending PlcSources defining available PLC sources
  * @public
  */
-export type PlcVariableRuntimeWithSource<M extends PlcMqtts, S extends PlcSources, V extends PlcVariable<M, S>> =
+export type PlcVariableRuntimeWithSource<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariable<M, S>,
+> =
   | PlcVariableNumberRuntimeWithModbusSource<S>
   | PlcVariableBooleanRuntimeWithModbusSource<S>
   | PlcVariableStringRuntimeWithModbusSource<S>
@@ -95,7 +116,7 @@ export type PlcVariableBase = {
   publishRate?: number;
 };
 
-/**r
+/** r
  * Configuration for a numeric PLC variable.
  * @public
  */
@@ -112,9 +133,12 @@ export type PlcVariableNumber = PlcVariableBase & {
  * Runtime instance of a numeric PLC variable with current value.
  * @public
  */
-export type PlcVariableNumberRuntime = PlcVariableNumber & PlcVariableRuntimeBase & {
-  value: number;
-};
+export type PlcVariableNumberRuntime =
+  & PlcVariableNumber
+  & PlcVariableRuntimeBase
+  & {
+    value: number;
+  };
 
 /**
  * Numeric PLC variable with Modbus source configuration.
@@ -122,14 +146,16 @@ export type PlcVariableNumberRuntime = PlcVariableNumber & PlcVariableRuntimeBas
  * @public
  */
 export type PlcVariableNumberWithModbusSource<S extends PlcSources> =
-  PlcVariableNumber & WithModbusSource<S>;
+  & PlcVariableNumber
+  & WithModbusSource<S>;
 /**
  * Numeric PLC variable with OPC UA source configuration.
  * @template S - Type extending PlcSources defining available PLC sources
  * @public
  */
 export type PlcVariableNumberWithOpcuaSource<S extends PlcSources> =
-  PlcVariableNumber & WithOpcuaSource<S>;
+  & PlcVariableNumber
+  & WithOpcuaSource<S>;
 
 /**
  * Numeric PLC variable with MQTT source configuration.
@@ -137,7 +163,16 @@ export type PlcVariableNumberWithOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableNumberWithMqttSource<M extends PlcMqtts> =
-  PlcVariableNumber & WithMqttSource<M>;
+  & PlcVariableNumber
+  & WithMqttSource<M>;
+
+/**
+ * Numeric PLC variable with REST source configuration.
+ * @public
+ */
+export type PlcVariableNumberWithRestSource =
+  & PlcVariableNumber
+  & WithRestSource;
 
 /**
  * Runtime instance of a numeric PLC variable with Modbus source configuration.
@@ -145,16 +180,17 @@ export type PlcVariableNumberWithMqttSource<M extends PlcMqtts> =
  * @public
  */
 export type PlcVariableNumberRuntimeWithModbusSource<S extends PlcSources> =
-  PlcVariableNumberRuntime & WithModbusSourceRuntime<S>;
+  & PlcVariableNumberRuntime
+  & WithModbusSourceRuntime<S>;
 
-  /**
+/**
  * Runtime instance of a numeric PLC variable with OPC UA source configuration.
  * @template S - Type extending PlcSources defining available PLC sources
  * @public
  */
 export type PlcVariableNumberRuntimeWithOpcuaSource<S extends PlcSources> =
-  PlcVariableNumberRuntime & WithOpcuaSourceRuntime<S>;
-
+  & PlcVariableNumberRuntime
+  & WithOpcuaSourceRuntime<S>;
 
 /**
  * Runtime instance of a numeric PLC variable with MQTT source configuration.
@@ -162,7 +198,16 @@ export type PlcVariableNumberRuntimeWithOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableNumberRuntimeWithMqttSource<M extends PlcMqtts> =
-  PlcVariableNumberRuntime & WithMqttSourceRuntime<M>;
+  & PlcVariableNumberRuntime
+  & WithMqttSourceRuntime<M>;
+
+/**
+ * Runtime instance of a numeric PLC variable with REST source configuration.
+ * @public
+ */
+export type PlcVariableNumberRuntimeWithRestSource =
+  & PlcVariableNumberRuntime
+  & WithRestSourceRuntime;
 
 /**
  * Configuration for a boolean PLC variable.
@@ -177,9 +222,12 @@ export type PlcVariableBoolean = PlcVariableBase & {
  * Runtime instance of a boolean PLC variable with current value.
  * @public
  */
-export type PlcVariableBooleanRuntime = PlcVariableBoolean & PlcVariableRuntimeBase & {
-  value: boolean;
-};
+export type PlcVariableBooleanRuntime =
+  & PlcVariableBoolean
+  & PlcVariableRuntimeBase
+  & {
+    value: boolean;
+  };
 
 /**
  * Boolean PLC variable with Modbus source configuration.
@@ -187,14 +235,16 @@ export type PlcVariableBooleanRuntime = PlcVariableBoolean & PlcVariableRuntimeB
  * @public
  */
 export type PlcVariableBooleanWithModbusSource<S extends PlcSources> =
-  PlcVariableBoolean & WithModbusSource<S>;
+  & PlcVariableBoolean
+  & WithModbusSource<S>;
 /**
  * Boolean PLC variable with OPC UA source configuration.
  * @template S - Type extending PlcSources defining available PLC sources
  * @public
  */
 export type PlcVariableBooleanWithOpcuaSource<S extends PlcSources> =
-  PlcVariableBoolean & WithOpcuaSource<S>;
+  & PlcVariableBoolean
+  & WithOpcuaSource<S>;
 
 /**
  * Boolean PLC variable with MQTT source configuration.
@@ -202,7 +252,16 @@ export type PlcVariableBooleanWithOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableBooleanWithMqttSource<M extends PlcMqtts> =
-  PlcVariableBoolean & WithMqttSource<M>;
+  & PlcVariableBoolean
+  & WithMqttSource<M>;
+
+/**
+ * Boolean PLC variable with REST source configuration.
+ * @public
+ */
+export type PlcVariableBooleanWithRestSource =
+  & PlcVariableBoolean
+  & WithRestSource;
 
 /**
  * Runtime instance of a boolean PLC variable with Modbus source configuration.
@@ -210,14 +269,16 @@ export type PlcVariableBooleanWithMqttSource<M extends PlcMqtts> =
  * @public
  */
 export type PlcVariableBooleanRuntimeWithModbusSource<S extends PlcSources> =
-  PlcVariableBooleanRuntime & WithModbusSourceRuntime<S>;
+  & PlcVariableBooleanRuntime
+  & WithModbusSourceRuntime<S>;
 /**
  * Runtime instance of a boolean PLC variable with OPC UA source configuration.
  * @template S - Type extending PlcSources defining available PLC sources
  * @public
  */
 export type PlcVariableBooleanRuntimeWithOpcuaSource<S extends PlcSources> =
-  PlcVariableBooleanRuntime & WithOpcuaSourceRuntime<S>;
+  & PlcVariableBooleanRuntime
+  & WithOpcuaSourceRuntime<S>;
 
 /**
  * Runtime instance of a boolean PLC variable with MQTT source configuration.
@@ -225,7 +286,16 @@ export type PlcVariableBooleanRuntimeWithOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableBooleanRuntimeWithMqttSource<M extends PlcMqtts> =
-  PlcVariableBooleanRuntime & WithMqttSourceRuntime<M>;
+  & PlcVariableBooleanRuntime
+  & WithMqttSourceRuntime<M>;
+
+/**
+ * Runtime instance of a boolean PLC variable with REST source configuration.
+ * @public
+ */
+export type PlcVariableBooleanRuntimeWithRestSource =
+  & PlcVariableBooleanRuntime
+  & WithRestSourceRuntime;
 
 /**
  * Configuration for a string PLC variable.
@@ -257,9 +327,12 @@ export type PlcVariableRuntimeBase = {
  * Runtime instance of a string PLC variable with current value.
  * @public
  */
-export type PlcVariableStringRuntime = PlcVariableString & PlcVariableRuntimeBase & {
-  value: string;
-};
+export type PlcVariableStringRuntime =
+  & PlcVariableString
+  & PlcVariableRuntimeBase
+  & {
+    value: string;
+  };
 
 /**
  * String PLC variable with Modbus source configuration.
@@ -267,7 +340,8 @@ export type PlcVariableStringRuntime = PlcVariableString & PlcVariableRuntimeBas
  * @public
  */
 export type PlcVariableStringWithModbusSource<S extends PlcSources> =
-  PlcVariableString & WithModbusSourceRuntime<S>;
+  & PlcVariableString
+  & WithModbusSourceRuntime<S>;
 
 /**
  * String PLC variable with OPC UA source configuration.
@@ -275,7 +349,8 @@ export type PlcVariableStringWithModbusSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableStringWithOpcuaSource<S extends PlcSources> =
-  PlcVariableString & WithOpcuaSourceRuntime<S>;
+  & PlcVariableString
+  & WithOpcuaSourceRuntime<S>;
 
 /**
  * String PLC variable with MQTT source configuration.
@@ -283,7 +358,16 @@ export type PlcVariableStringWithOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableStringWithMqttSource<M extends PlcMqtts> =
-  PlcVariableString & WithMqttSourceRuntime<M>;
+  & PlcVariableString
+  & WithMqttSourceRuntime<M>;
+
+/**
+ * String PLC variable with REST source configuration.
+ * @public
+ */
+export type PlcVariableStringWithRestSource =
+  & PlcVariableString
+  & WithRestSource;
 
 /**
  * Runtime instance of a string PLC variable with Modbus source configuration.
@@ -291,14 +375,16 @@ export type PlcVariableStringWithMqttSource<M extends PlcMqtts> =
  * @public
  */
 export type PlcVariableStringRuntimeWithModbusSource<S extends PlcSources> =
-  PlcVariableStringRuntime & WithModbusSourceRuntime<S>;
+  & PlcVariableStringRuntime
+  & WithModbusSourceRuntime<S>;
 /**
  * Runtime instance of a string PLC variable with OPC UA source configuration.
  * @template S - Type extending PlcSources defining available PLC sources
  * @public
  */
 export type PlcVariableStringRuntimeWithOpcuaSource<S extends PlcSources> =
-  PlcVariableStringRuntime & WithOpcuaSourceRuntime<S>;
+  & PlcVariableStringRuntime
+  & WithOpcuaSourceRuntime<S>;
 
 /**
  * Runtime instance of a string PLC variable with MQTT source configuration.
@@ -306,7 +392,16 @@ export type PlcVariableStringRuntimeWithOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableStringRuntimeWithMqttSource<M extends PlcMqtts> =
-  PlcVariableStringRuntime & WithMqttSourceRuntime<M>;
+  & PlcVariableStringRuntime
+  & WithMqttSourceRuntime<M>;
+
+/**
+ * Runtime instance of a string PLC variable with REST source configuration.
+ * @public
+ */
+export type PlcVariableStringRuntimeWithRestSource =
+  & PlcVariableStringRuntime
+  & WithRestSourceRuntime;
 
 /**
  * Configuration for a user-defined type (UDT) PLC variable.
@@ -323,9 +418,12 @@ export type PlcVariableUdt<T> = PlcVariableBase & {
  * @template T - Type of the UDT data
  * @public
  */
-export type PlcVariableUdtRuntime<T> = PlcVariableUdt<T> & PlcVariableRuntimeBase & {
-  value: T;
-};
+export type PlcVariableUdtRuntime<T> =
+  & PlcVariableUdt<T>
+  & PlcVariableRuntimeBase
+  & {
+    value: T;
+  };
 
 /**
  * UDT PLC variable with Modbus source configuration.
@@ -335,7 +433,7 @@ export type PlcVariableUdtRuntime<T> = PlcVariableUdt<T> & PlcVariableRuntimeBas
  */
 export type PlcVariableUdtWithModbusSource<
   S extends PlcSources,
-  T
+  T,
 > = PlcVariableUdt<T> & WithModbusSource<S>;
 
 /**
@@ -346,7 +444,7 @@ export type PlcVariableUdtWithModbusSource<
  */
 export type PlcVariableUdtWithOpcuaSource<
   S extends PlcSources,
-  T
+  T,
 > = PlcVariableUdt<T> & WithOpcuaSource<S>;
 
 /**
@@ -355,7 +453,16 @@ export type PlcVariableUdtWithOpcuaSource<
  * @public
  */
 export type PlcVariableUdtWithMqttSource<M extends PlcMqtts, T> =
-  PlcVariableUdt<T> & WithMqttSource<M>;
+  & PlcVariableUdt<T>
+  & WithMqttSource<M>;
+
+/**
+ * UDT PLC variable with REST source configuration.
+ * @public
+ */
+export type PlcVariableUdtWithRestSource<T> =
+  & PlcVariableUdt<T>
+  & WithRestSource;
 
 /**
  * Runtime instance of a UDT PLC variable with Modbus source configuration.
@@ -365,7 +472,7 @@ export type PlcVariableUdtWithMqttSource<M extends PlcMqtts, T> =
  */
 export type PlcVariableUdtRuntimeWithModbusSource<
   S extends PlcSources,
-  T
+  T,
 > = PlcVariableUdtRuntime<T> & WithModbusSourceRuntime<S>;
 
 /**
@@ -374,7 +481,8 @@ export type PlcVariableUdtRuntimeWithModbusSource<
  * @public
  */
 export type PlcVariableUdtRuntimeWithMqttSource<M extends PlcMqtts, T> =
-  PlcVariableUdtRuntime<T> & WithMqttSourceRuntime<M>;
+  & PlcVariableUdtRuntime<T>
+  & WithMqttSourceRuntime<M>;
 
 /**
  * Runtime instance of a UDT PLC variable with OPC UA source configuration.
@@ -384,8 +492,17 @@ export type PlcVariableUdtRuntimeWithMqttSource<M extends PlcMqtts, T> =
  */
 export type PlcVariableUdtRuntimeWithOpcuaSource<
   S extends PlcSources,
-  T
+  T,
 > = PlcVariableUdtRuntime<T> & WithOpcuaSourceRuntime<S>;
+
+/**
+ * Runtime instance of a UDT PLC variable with REST source configuration.
+ * @template T - Type of the UDT data
+ * @public
+ */
+export type PlcVariableUdtRuntimeWithRestSource<T> =
+  & PlcVariableUdtRuntime<T>
+  & WithRestSourceRuntime;
 
 /**
  * A collection of PLC variables mapped by their names.
@@ -397,7 +514,10 @@ export type PlcVariableUdtRuntimeWithOpcuaSource<
 export type PlcVariables<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends Record<string, PlcVariable<M,S>> = Record<string, PlcVariable<M,S>>
+  V extends Record<string, PlcVariable<M, S>> = Record<
+    string,
+    PlcVariable<M, S>
+  >,
 > = V;
 
 /**
@@ -411,46 +531,50 @@ export type PlcVariables<
 export type PlcVariablesRuntime<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>
+  V extends PlcVariables<M, S>,
 > = {
-  [K in keyof V]: V[K] extends PlcVariableBoolean
-    ? PlcVariableBooleanRuntime
-    : V[K] extends PlcVariableNumber
-    ? PlcVariableNumberRuntime
-    : V[K] extends PlcVariableString
-    ? PlcVariableStringRuntime
-    : V[K] extends PlcVariableUdt<infer U>
-    ? PlcVariableUdtRuntime<U>
+  [K in keyof V]: V[K] extends PlcVariableBoolean ? PlcVariableBooleanRuntime
+    : V[K] extends PlcVariableNumber ? PlcVariableNumberRuntime
+    : V[K] extends PlcVariableString ? PlcVariableStringRuntime
+    : V[K] extends PlcVariableUdt<infer U> ? PlcVariableUdtRuntime<U>
     : V[K] extends PlcVariableNumberWithModbusSource<S>
-    ? PlcVariableNumberRuntimeWithModbusSource<S>
+      ? PlcVariableNumberRuntimeWithModbusSource<S>
     : V[K] extends PlcVariableBooleanWithModbusSource<S>
-    ? PlcVariableBooleanRuntimeWithModbusSource<S>
+      ? PlcVariableBooleanRuntimeWithModbusSource<S>
     : V[K] extends PlcVariableStringWithModbusSource<S>
-    ? PlcVariableStringRuntimeWithModbusSource<S>
+      ? PlcVariableStringRuntimeWithModbusSource<S>
     : V[K] extends PlcVariableUdtWithModbusSource<S, infer U>
-    ? PlcVariableUdtRuntimeWithModbusSource<S, U>
+      ? PlcVariableUdtRuntimeWithModbusSource<S, U>
     : V[K] extends PlcVariableNumberWithOpcuaSource<S>
-    ? PlcVariableNumberRuntimeWithOpcuaSource<S>
+      ? PlcVariableNumberRuntimeWithOpcuaSource<S>
     : V[K] extends PlcVariableBooleanWithOpcuaSource<S>
-    ? PlcVariableBooleanRuntimeWithOpcuaSource<S>
+      ? PlcVariableBooleanRuntimeWithOpcuaSource<S>
     : V[K] extends PlcVariableStringWithOpcuaSource<S>
-    ? PlcVariableStringRuntimeWithOpcuaSource<S>
+      ? PlcVariableStringRuntimeWithOpcuaSource<S>
     : V[K] extends PlcVariableUdtWithOpcuaSource<S, infer U>
-    ? PlcVariableUdtRuntimeWithOpcuaSource<S, U>
+      ? PlcVariableUdtRuntimeWithOpcuaSource<S, U>
     : V[K] extends PlcVariableNumberWithMqttSource<M>
-    ? PlcVariableNumberRuntimeWithMqttSource<M>
+      ? PlcVariableNumberRuntimeWithMqttSource<M>
     : V[K] extends PlcVariableBooleanWithMqttSource<M>
-    ? PlcVariableBooleanRuntimeWithMqttSource<M>
+      ? PlcVariableBooleanRuntimeWithMqttSource<M>
     : V[K] extends PlcVariableStringWithMqttSource<M>
-    ? PlcVariableStringRuntimeWithMqttSource<M>
+      ? PlcVariableStringRuntimeWithMqttSource<M>
     : V[K] extends PlcVariableUdtWithMqttSource<M, infer U>
-    ? PlcVariableUdtRuntimeWithMqttSource<M, U>
+      ? PlcVariableUdtRuntimeWithMqttSource<M, U>
+    : V[K] extends PlcVariableNumberWithRestSource
+      ? PlcVariableNumberRuntimeWithRestSource
+    : V[K] extends PlcVariableBooleanWithRestSource
+      ? PlcVariableBooleanRuntimeWithRestSource
+    : V[K] extends PlcVariableStringWithRestSource
+      ? PlcVariableStringRuntimeWithRestSource
+    : V[K] extends PlcVariableUdtWithRestSource<infer U>
+      ? PlcVariableUdtRuntimeWithRestSource<U>
     : never;
 };
 
 const isVariableType = <T>(
   variable: unknown,
-  datatype: string
+  datatype: string,
 ): variable is T =>
   typeof variable === "object" &&
   variable !== null &&
@@ -464,7 +588,7 @@ const isVariableType = <T>(
  * @public
  */
 export const isVariableBoolean = (
-  variable: unknown
+  variable: unknown,
 ): variable is PlcVariableBoolean =>
   isVariableType<PlcVariableBoolean>(variable, "boolean");
 
@@ -475,7 +599,7 @@ export const isVariableBoolean = (
  * @public
  */
 export const isVariableNumber = (
-  variable: unknown
+  variable: unknown,
 ): variable is PlcVariableNumber =>
   isVariableType<PlcVariableNumber>(variable, "number");
 
@@ -486,7 +610,7 @@ export const isVariableNumber = (
  * @public
  */
 export const isVariableString = (
-  variable: unknown
+  variable: unknown,
 ): variable is PlcVariableString =>
   isVariableType<PlcVariableString>(variable, "string");
 
@@ -497,7 +621,7 @@ export const isVariableString = (
  * @public
  */
 export const isVariableUdt = (
-  variable: unknown
+  variable: unknown,
 ): variable is PlcVariableUdt<unknown> =>
   isVariableType<PlcVariableUdt<unknown>>(variable, "Template");
 
@@ -509,7 +633,7 @@ export const isVariableUdt = (
  * @public
  */
 export const hasModbusSource = <S extends PlcSources>(
-  variable: unknown
+  variable: unknown,
 ): variable is WithModbusSource<S> =>
   isSourceModbus((variable as WithModbusSource<S>).source);
 
@@ -521,7 +645,7 @@ export const hasModbusSource = <S extends PlcSources>(
  * @public
  */
 export const hasOpcuaSource = <S extends PlcSources>(
-  variable: unknown
+  variable: unknown,
 ): variable is WithOpcuaSource<S> =>
   isSourceOpcua((variable as WithOpcuaSource<S>).source);
 
@@ -533,6 +657,20 @@ export const hasOpcuaSource = <S extends PlcSources>(
  * @public
  */
 export const hasMqttSource = <M extends PlcMqtts>(
-  variable: unknown
+  variable: unknown,
 ): variable is WithMqttSource<M> =>
   isSourceMqtt((variable as WithMqttSource<M>).source);
+
+/**
+ * Type guard to check if a variable has a REST source configuration.
+ * @param variable - The variable to check
+ * @returns True if the variable has a REST source configuration
+ * @public
+ */
+export const hasRestSource = (
+  variable: unknown,
+): variable is
+  | PlcVariableBooleanRuntimeWithRestSource
+  | PlcVariableNumberRuntimeWithRestSource
+  | PlcVariableStringRuntimeWithRestSource =>
+  isSourceRest((variable as WithRestSource).source);
