@@ -171,8 +171,9 @@ export function createPlcMqtt<
             if (!acc[`${variable.source.topic}`]) {
               acc[`${variable.source.topic}`] = Object.fromEntries(
                 Object.entries(sourceVariables).filter(
-                  ([_, variable]) =>
-                    variable.source.topic === variable.source.topic,
+                  ([_, v]) => {
+                    return v.source.topic === variable.source.topic
+                  }
                 ),
               ) as PlcVariablesRuntime<M, S, V>;
             }
@@ -180,6 +181,7 @@ export function createPlcMqtt<
           },
           {} as Record<string, PlcVariablesRuntime<M, S, V>>,
         );
+        // console.log('topics', Object.keys(topics).map((key) => Object.keys(topics[key])))
         const handlers: Record<
           string,
           (topic: string, message: Buffer) => void

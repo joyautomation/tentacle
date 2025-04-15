@@ -6,13 +6,14 @@ import { addMemoryUsageToSchema } from "./memory.ts";
 import type { PlcSources } from "./types/sources.ts";
 import type { PlcConfig } from "./types/types.ts";
 import type { PlcVariables } from "./types/variables.ts";
-import { PlcMqtts } from "./types/mqtt.ts";
+import type { PlcMqtts } from "./types/mqtt.ts";
 const { main } = logs;
 
 export type { ArgDictionaryItem };
 export * from "./types/types.ts";
 export * from "./types/sources.ts";
 export * from "./types/variables.ts";
+export * from "./types/mqtt.ts";
 export * from "./modbus/types.ts";
 
 /**
