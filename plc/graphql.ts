@@ -31,8 +31,7 @@ import {
 } from "@joyautomation/synapse";
 import { GraphQLError } from "graphql";
 import { getModbusStateString } from "../modbus/client.ts";
-import { MqttConnection, PlcMqtts } from "../types/mqtt.ts";
-// import { getModbusStateString } from "../modbus/client.ts";
+import type { MqttConnection, PlcMqtts } from "../types/mqtt.ts";
 
 export function addPlcToSchema<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
   builder: ReturnType<typeof getBuilder<{ plc: Plc<M, S, V> }>>,
@@ -185,7 +184,6 @@ export function addPlcToSchema<M extends PlcMqtts, S extends PlcSources, V exten
   });
   PlcRuntimeMqttRef.implement({
     fields: (t) => ({
-      id: t.exposeString("id"),
       brokerUrl: t.exposeString("brokerUrl", {
         nullable: true,
       }),
@@ -271,6 +269,10 @@ export function addPlcToSchema<M extends PlcMqtts, S extends PlcSources, V exten
       id: t.exposeString("id"),
       description: t.exposeString("description"),
       datatype: t.exposeString("datatype"),
+      decimals: t.int({
+        nullable: true,
+        resolve: (parent) => parent.datatype === "number" ? parent.decimals : null,
+      }),
       default: t.string({
         resolve: (parent) => parent.default?.toString(),
       }),

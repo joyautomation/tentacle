@@ -123,6 +123,7 @@ export type PlcVariableBase = {
 export type PlcVariableNumber = PlcVariableBase & {
   datatype: "number";
   default: number;
+  decimals: number;
   deadband?: {
     maxTime: number;
     value: number;

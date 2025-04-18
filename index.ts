@@ -14,6 +14,7 @@ export * from "./types/types.ts";
 export * from "./types/sources.ts";
 export * from "./types/variables.ts";
 export * from "./types/mqtt.ts";
+export * from "./types/rest.ts";
 export * from "./modbus/types.ts";
 
 /**
