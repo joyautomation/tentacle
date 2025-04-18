@@ -2,6 +2,7 @@ import type { getBuilder } from "@joyautomation/conch";
 import type { Plc } from "./types/types.ts";
 import type { PlcVariables } from "./types/variables.ts";
 import type { PlcSources } from "./types/sources.ts";
+import { PlcMqtts } from "./types/mqtt.ts";
 
 export enum MemoryUsageUnits {
   BYTES,
@@ -44,9 +45,10 @@ export const convertDenoMemoryUsage = (
 });
 
 export function addMemoryUsageToSchema<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(builder: ReturnType<typeof getBuilder<{ plc: Plc<S, V> }>>) {
+  V extends PlcVariables<M, S>,
+>(builder: ReturnType<typeof getBuilder<{ plc: Plc<M, S, V> }>>) {
   const MemoryUsageRef = builder.objectRef<ReturnType<typeof Deno.memoryUsage>>(
     "MemoryUsage",
   );

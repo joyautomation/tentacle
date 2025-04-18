@@ -5,6 +5,7 @@ import {
 } from "@joyautomation/synapse";
 import type { Plc } from "./types/types.ts";
 import {
+  hasMqttSource,
   isPlcVariableRuntimeWithSource,
   type PlcVariableRuntime,
   type PlcVariables,
@@ -18,6 +19,9 @@ import {
 } from "./types/sources.ts";
 import type { TypeStr } from "sparkplug-payload/sparkplugPayloadProto";
 import { getModbusStateString } from "./modbus/client.ts";
+import type { PlcMqtts } from "./types/mqtt.ts";
+import { updateRuntimeValue } from "./plc/runtime.ts";
+import type { Buffer } from "node:buffer";
 
 export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
   switch (datatype) {
@@ -35,13 +39,14 @@ export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
 };
 
 export const variablesToMetrics = <
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<M, S>,
 >(
-  variables: PlcVariablesRuntime<S, V>
+  variables: PlcVariablesRuntime<M, S, V>,
 ) => {
   return Object.entries(variables).reduce(
-    (acc, [key, variable]: [string, PlcVariableRuntime<S>]) => {
+    (acc, [key, variable]: [string, PlcVariableRuntime<M, S>]) => {
       acc[key] = {
         name: variable.id,
         properties: {
@@ -51,11 +56,11 @@ export const variablesToMetrics = <
           },
           ...(isPlcVariableRuntimeWithSource(variable)
             ? {
-                source: {
-                  value: variable.source.id,
-                  type: "String",
-                },
-              }
+              source: {
+                value: variable.source.id,
+                type: "String",
+              },
+            }
             : {}),
         },
         type: variableTypeToSparkplugType(variable.datatype),
@@ -67,7 +72,7 @@ export const variablesToMetrics = <
       };
       return acc;
     },
-    {} as Record<string, SparkplugMetric>
+    {} as Record<string, SparkplugMetric>,
   );
 };
 
@@ -78,7 +83,7 @@ const getStateFromSource = (source: PlcSourceRuntime) => {
 };
 
 export const sourcesToMetrics = <S extends PlcSources>(
-  sources: PlcSourcesRuntime<S>
+  sources: PlcSourcesRuntime<S>,
 ) => {
   return Object.entries(sources).reduce(
     (acc, [key, source]: [string, PlcSourceRuntime]) => {
@@ -99,11 +104,11 @@ export const sourcesToMetrics = <S extends PlcSources>(
           },
           ...(isSourceModbus(source)
             ? {
-                error: {
-                  value: source.client.lastError?.message || null,
-                  type: "String",
-                },
-              }
+              error: {
+                value: source.client.lastError?.message || null,
+                type: "String",
+              },
+            }
             : {}),
         },
         type: "String",
@@ -112,21 +117,25 @@ export const sourcesToMetrics = <S extends PlcSources>(
       };
       return acc;
     },
-    {} as Record<string, SparkplugMetric>
+    {} as Record<string, SparkplugMetric>,
   );
 };
 
-export function createPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>
+export function createPlcMqtt<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(
+  plc: Plc<M, S, V>,
 ) {
   const {
     config: { mqtt },
   } = plc;
   const resultMqtt: Record<string, ReturnType<typeof createNode>> = {};
-  for (const [key, config] of Object.entries(mqtt)) {
+  for (const [mqttKey, config] of Object.entries(mqtt)) {
     if (config.enabled) {
-      resultMqtt[key] = createNode({
-        id: key,
+      resultMqtt[mqttKey] = createNode({
+        id: mqttKey,
         brokerUrl: config.serverUrl,
         username: config.username,
         password: config.password,
@@ -144,14 +153,73 @@ export function createPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
           },
         },
       });
+      const sourceVariables = Object.fromEntries(
+        Object.entries(plc.runtime.variables)
+          .filter(([_, variable]) => {
+            if (hasMqttSource(variable)) {
+              return variable.source.id === mqttKey;
+            }
+            return false;
+          })
+          .map((
+            [key, variable],
+          ) => [key, { ...variable, source: variable.source }]),
+      ) as PlcVariablesRuntime<M, S, V>;
+      if (Object.keys(sourceVariables).length > 0) {
+        const topics = Object.values(sourceVariables).reduce(
+          (acc: Record<string, PlcVariablesRuntime<M, S, V>>, variable) => {
+            if (!acc[`${variable.source.topic}`]) {
+              acc[`${variable.source.topic}`] = Object.fromEntries(
+                Object.entries(sourceVariables).filter(
+                  ([_, v]) => {
+                    return v.source.topic === variable.source.topic
+                  }
+                ),
+              ) as PlcVariablesRuntime<M, S, V>;
+            }
+            return acc;
+          },
+          {} as Record<string, PlcVariablesRuntime<M, S, V>>,
+        );
+        // console.log('topics', Object.keys(topics).map((key) => Object.keys(topics[key])))
+        const handlers: Record<
+          string,
+          (topic: string, message: Buffer) => void
+        > = Object.fromEntries(
+          Object.entries(topics).map(([subscribedTopic, variables]) => {
+            return [
+              subscribedTopic,
+              (topic: string, message: Buffer) => {
+                if (topic !== subscribedTopic) return;
+                for (
+                  const [variableId, variable] of Object.entries(variables)
+                ) {
+                  const value = variable.source.onResponse
+                    ? variable.source.onResponse(message)
+                    : message;
+                  updateRuntimeValue(plc, variableId, value);
+                }
+              },
+            ];
+          }),
+        );
+        for (const [subscribedTopic, handler] of Object.entries(handlers)) {
+          resultMqtt[mqttKey]?.mqtt?.subscribe(subscribedTopic, { qos: 0 });
+          resultMqtt[mqttKey]?.mqtt?.on("message", handler);
+        }
+      }
     }
   }
   plc.runtime.mqtt = resultMqtt;
   return () => destroyPlcMqtt(plc);
 }
 
-export function destroyPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
-  plc: Plc<S, V>
+export function destroyPlcMqtt<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(
+  plc: Plc<M, S, V>,
 ) {
   for (const node of Object.values(plc.runtime.mqtt)) {
     disconnectNode(node);
@@ -161,10 +229,11 @@ export function destroyPlcMqtt<S extends PlcSources, V extends PlcVariables<S>>(
 }
 
 export const updateMetricValues = <
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<M, S>,
 >(
-  plc: Plc<S, V>
+  plc: Plc<M, S, V>,
 ) => {
   for (const [key, variable] of Object.entries(plc.runtime.variables)) {
     for (const node of Object.values(plc.runtime.mqtt)) {

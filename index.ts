@@ -6,12 +6,15 @@ import { addMemoryUsageToSchema } from "./memory.ts";
 import type { PlcSources } from "./types/sources.ts";
 import type { PlcConfig } from "./types/types.ts";
 import type { PlcVariables } from "./types/variables.ts";
+import type { PlcMqtts } from "./types/mqtt.ts";
 const { main } = logs;
 
 export type { ArgDictionaryItem };
 export * from "./types/types.ts";
 export * from "./types/sources.ts";
 export * from "./types/variables.ts";
+export * from "./types/mqtt.ts";
+export * from "./types/rest.ts";
 export * from "./modbus/types.ts";
 
 /**
@@ -27,13 +30,14 @@ export * from "./modbus/types.ts";
  * @param {Record<string, ArgDictionaryItem>} [userArgDictionary] - Custom CLI argument dictionary
  * @param {number} [port] - Port to run GraphQL server on, defaults to 4123
  * @param {string} [host] - Host to bind GraphQL server to, defaults to "0.0.0.0"
- * @returns {Promise<{plc: Plc<S, V>, app: App}>} - The created PLC instance and GraphQL app
+ * @returns {Promise<{plc: Plc<M, S, V>, app: App}>} - The created PLC instance and GraphQL app
  */
 export async function createTentacle<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>
+  V extends PlcVariables<M,S>
 >(
-  config: PlcConfig<S, V>,
+  config: PlcConfig<M, S, V>,
   title?: string,
   description?: string,
   env_prefix?: string,

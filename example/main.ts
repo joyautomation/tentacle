@@ -1,19 +1,65 @@
-import { createTentacle, type PlcVariableBoolean } from "../index.ts";
-import type { PlcVariableNumber } from "../types/variables.ts";
+import { json } from "node:stream/consumers";
+import {
+  createTentacle,
+  type PlcVariableBoolean,
+  PlcVariableNumberWithMqttSource,
+} from "../index.ts";
+import { MqttConnection } from "../types/mqtt.ts";
+import type {
+  PlcVariableBooleanWithRestSource,
+  PlcVariableNumber,
+  PlcVariableNumberRuntimeWithRestSource,
+  PlcVariableNumberWithRestSource,
+} from "../types/variables.ts";
 import { type FtirSources, ftirSources } from "./sources/ftir.ts";
 import { customAlphabet } from "nanoid";
+import { pipe } from "@joyautomation/dark-matter";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
 
-type Sources = FtirSources;
+type Mqtts = {
+  local: MqttConnection;
+};
+
+type Sources = {}; //FtirSources;
 
 type Variables = {
   // FtirVariables & {
   count: PlcVariableNumber;
   another: PlcVariableNumber;
   yetAnother: PlcVariableBoolean;
+  temperature: PlcVariableNumberWithMqttSource<Mqtts>;
+  output: PlcVariableBooleanWithRestSource;
 };
 
-const main = await createTentacle<Sources, Variables>({
+const hexToValue = (hexString: string) =>
+  pipe(
+    hexString,
+    (hexString: string) =>
+      hexString != null ? hexString?.slice(0, 2) + hexString?.slice(2, 4) : "",
+    (hexString: string) => parseInt(hexString, 16),
+    // (hex: number) => {
+    //   const result = new Uint8Array(4);
+    //   const buffer = new ArrayBuffer(4);
+    //   const view = new DataView(buffer);
+    //   view.setUint32(0, hex, true);
+    //   return view.getFloat32(0, false);
+    // },
+    (value: number) => value / 10,
+  );
+
+function numberToHexString(num?: number | boolean | string): string {
+  // Convert number to a hex string
+  let hexString = num?.toString(16) || "00";
+
+  // Pad with leading zeros to ensure it's 2 characters long
+  while (hexString.length < 2) {
+    hexString = "0" + hexString;
+  }
+
+  return hexString.toUpperCase(); // Convert to uppercase for consistency
+}
+
+const main = await createTentacle<Mqtts, Sources, Variables>({
   redisUrl: `redis://${Deno.env.get("TENTACLE_EXAMPLE_REDIS_HOST")}:6379`,
   // ha: {
   //   lease: "tentacle-test",
@@ -56,9 +102,39 @@ const main = await createTentacle<Sources, Variables>({
     },
   },
   sources: {
-    ...ftirSources,
+    // ...ftirSources,
   },
   variables: {
+    output: {
+      id: "output",
+      datatype: "boolean",
+      description: "Output",
+      default: false,
+      source: {
+        type: "rest",
+        rate: 1000,
+        url:
+          "http://192.168.82.12/iolinkmaster/port[3]/iolinkdevice/pdout/getdata",
+        method: "GET",
+        headers: {},
+        setFromResponse: true,
+        body: (value) => {
+          return JSON.stringify({
+            code: "request",
+            cid: 10,
+            adr: `iolinkmaster/port[3]/iolinkdevice/pdout/getdata`,
+            data: {
+              newvalue: numberToHexString(value ? 1 : 0),
+            },
+          });
+        },
+        onResponse: (response, variable) => {
+          const { data: { value } } = response;
+          return value === "01";
+        },
+        timeout: 10000,
+      },
+    },
     count: {
       id: "count",
       datatype: "number",
@@ -76,6 +152,24 @@ const main = await createTentacle<Sources, Variables>({
       datatype: "boolean",
       description: "A boolean",
       default: false,
+    },
+    temperature: {
+      id: "temperature",
+      datatype: "number",
+      description: "Temperature",
+      default: 0,
+      source: {
+        id: "local",
+        type: "mqtt",
+        topic: "instruments/pm_20_26",
+        onResponse: (value) => {
+          const raw = JSON.parse(value.toString());
+          const { data: { payload } } = raw;
+          const { data: temperatureRaw } =
+            payload["/iolinkmaster/port[1]/iolinkdevice/pdin"];
+          return hexToValue(temperatureRaw);
+        },
+      },
     },
     // ...ftirVariables,
   },

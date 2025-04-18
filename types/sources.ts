@@ -61,10 +61,20 @@ export type PlcOpcuaSource = PlcSourceBase & {
 };
 
 /**
+ * Configuration for an MQTT source.
+ *
+ * @property {string} type - Must be "mqtt"
+ * @public
+ */
+export type PlcMqttSource = PlcSourceBase & {
+  type: "mqtt";
+};
+
+/**
  * A PLC source can be either a Modbus or OPC UA source.
  * @public
  */
-export type PlcSource = PlcModbusSource | PlcOpcuaSource;
+export type PlcSource = PlcModbusSource | PlcOpcuaSource | PlcMqttSource;
 
 /**
  * Runtime configuration for a Modbus source.
@@ -107,7 +117,7 @@ export type PlcSourceRuntime = PlcModbusSourceRuntime | PlcOpcuaSourceRuntime;
  * @public
  */
 export type PlcSources<
-  T extends Record<string, PlcSource> = Record<string, PlcSource>
+  T extends Record<string, PlcSource> = Record<string, PlcSource>,
 > = T;
 
 /**
@@ -146,6 +156,7 @@ export type PlcVariableSourceRuntimeBase = PlcVariableSourceBase & {
     error: string | null;
     message?: string | null;
     stack?: string | null;
+    timestamp: Date;
   };
 };
 
@@ -164,14 +175,16 @@ export type PlcVariableSourceRuntimeBase = PlcVariableSourceBase & {
  * @public
  */
 export type PlcVariableModbusSource<S extends PlcSources> =
-  PlcVariableSourceBase & {
-    id: keyof { [K in keyof S]: S[K] extends PlcModbusSource ? K : never } &
-      {
+  & PlcVariableSourceBase
+  & {
+    id:
+      & keyof { [K in keyof S]: S[K] extends PlcModbusSource ? K : never }
+      & {
         [K in keyof S]: S[K] extends PlcModbusSource ? K : never;
       }[keyof S];
     type: "modbus";
     bidirectional?: boolean;
-    onResponse?: (value: string) => number;
+    onResponse?: (value: string | boolean | number) => number;
     onSend?: (value: number) => number;
     register: number;
     registerType: ModbusRegisterType;
@@ -186,7 +199,8 @@ export type PlcVariableModbusSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableModbusSourceRuntime<S extends PlcSources> =
-  PlcVariableSourceRuntimeBase & PlcVariableModbusSource<S>;
+  & PlcVariableSourceRuntimeBase
+  & PlcVariableModbusSource<S>;
 
 /**
  * Configuration for an OPC UA variable source.
@@ -197,9 +211,11 @@ export type PlcVariableModbusSourceRuntime<S extends PlcSources> =
  * @public
  */
 export type PlcVariableOpcuaSource<S extends PlcSources> =
-  PlcVariableSourceBase & {
-    id: keyof { [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never } &
-      {
+  & PlcVariableSourceBase
+  & {
+    id:
+      & keyof { [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never }
+      & {
         [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never;
       }[keyof S];
     type: "opcua";
@@ -213,7 +229,8 @@ export type PlcVariableOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableOpcuaSourceRuntime<S extends PlcSources> =
-  PlcVariableSourceRuntimeBase & PlcVariableOpcuaSource<S>;
+  & PlcVariableSourceRuntimeBase
+  & PlcVariableOpcuaSource<S>;
 
 /**
  * Runtime configuration for a variable source.
@@ -304,7 +321,7 @@ export const isSourceOpcua = (source: unknown): source is PlcOpcuaSource =>
  * @public
  */
 export const isVariableModbusSourceRuntime = <S extends PlcSources>(
-  source: unknown
+  source: unknown,
 ): source is PlcVariableModbusSourceRuntime<S> => {
   if (
     typeof source === "object" &&
@@ -337,7 +354,7 @@ export const isVariableModbusSourceRuntime = <S extends PlcSources>(
  * @public
  */
 export const isVariableOpcuaSourceRuntime = <S extends PlcSources>(
-  source: unknown
+  source: unknown,
 ): source is PlcVariableOpcuaSourceRuntime<S> => {
   if (
     typeof source === "object" &&

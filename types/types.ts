@@ -2,6 +2,7 @@ import type { createClient } from "redis";
 import type { PlcSources, PlcSourcesRuntime } from "./sources.ts";
 import type { PlcVariables, PlcVariablesRuntime } from "./variables.ts";
 import type { SparkplugNode } from "@joyautomation/synapse";
+import type { PlcMqtts } from "./mqtt.ts";
 
 /**
  * Task configuration for a PLC instance.
@@ -14,11 +15,15 @@ import type { SparkplugNode } from "@joyautomation/synapse";
  * @property {number} scanRate - Scan rate for the task
  * @property {(variables: PlcVariablesRuntime<S, V>) => Promise<void> | void} program - Task program
  */
-export type PlcTask<S extends PlcSources, V extends PlcVariables<S>> = {
+export type PlcTask<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = {
   name: string;
   description: string;
   scanRate: number;
-  program: (variables: PlcVariablesRuntime<S, V>) => Promise<void> | void;
+  program: (variables: PlcVariablesRuntime<M, S, V>) => Promise<void> | void;
 };
 
 /**
@@ -27,9 +32,13 @@ export type PlcTask<S extends PlcSources, V extends PlcVariables<S>> = {
  * @template S - Type extending PlcSources defining available PLC sources
  * @template V - Type extending PlcVariables defining available PLC variables
  */
-export type PlcTasks<S extends PlcSources, V extends PlcVariables<S>> = Record<
+export type PlcTasks<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = Record<
   string,
-  PlcTaskRuntime<S, V>
+  PlcTaskRuntime<M, S, V>
 >;
 
 /**
@@ -43,9 +52,10 @@ export type PlcTasks<S extends PlcSources, V extends PlcVariables<S>> = Record<
  * @property {{ error: string | null; message?: string | null; stack?: string | null }} error - Task error
  */
 export type PlcTaskRuntime<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>
-> = PlcTask<S, V> & {
+  V extends PlcVariables<M, S>,
+> = PlcTask<M, S, V> & {
   interval: number;
   metrics: { waitTime: number; executeTime: number };
   error: {
@@ -62,38 +72,10 @@ export type PlcTaskRuntime<
  * @template V - Type extending PlcVariables defining available PLC variables
  */
 export type PlcTasksRuntime<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>
-> = Record<string, PlcTaskRuntime<S, V>>;
-
-/**
- * MQTT connection configuration.
- *
- * @property {boolean} enabled - Whether the connection is enabled
- * @property {string} name - Connection name
- * @property {string} description - Connection description
- * @property {string} serverUrl - MQTT server URL
- * @property {string} groupId - Group ID
- * @property {string} nodeId - Node ID
- * @property {string} deviceId - Device ID
- * @property {string} clientId - Client ID
- * @property {string} username - Username
- * @property {string} password - Password
- * @property {"spBv1.0"} [version] - Version
- */
-export type MqttConnection = {
-  enabled: boolean;
-  name: string;
-  description: string;
-  serverUrl: string;
-  groupId: string;
-  nodeId: string;
-  deviceId: string;
-  clientId: string;
-  username: string;
-  password: string;
-  version?: "spBv1.0";
-};
+  V extends PlcVariables<M, S>,
+> = Record<string, PlcTaskRuntime<M, S, V>>;
 
 /**
  * Configuration for a PLC instance.
@@ -108,10 +90,14 @@ export type MqttConnection = {
  * @property {V} variables - Variable configurations for the PLC
  * @public
  */
-export type PlcConfig<S extends PlcSources, V extends PlcVariables<S>> = {
+export type PlcConfig<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = {
   redisUrl?: string;
-  tasks: Record<string, PlcTask<S, V>>;
-  mqtt: Record<string, MqttConnection>;
+  tasks: Record<string, PlcTask<M, S, V>>;
+  mqtt: M;
   sources: S;
   variables: V;
 };
@@ -133,17 +119,22 @@ export type PlcConfig<S extends PlcSources, V extends PlcVariables<S>> = {
  * @property {PlcSourcesRuntime<S>} runtime.sources - Runtime source states
  * @public
  */
-export type Plc<S extends PlcSources, V extends PlcVariables<S>> = {
-  config: PlcConfig<S, V>;
+export type Plc<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+> = {
+  config: PlcConfig<M, S, V>;
   runtime: {
     redis?: {
       publisher: ReturnType<typeof createClient>;
       subscriber: ReturnType<typeof createClient>;
     };
-    tasks: PlcTasksRuntime<S, V>;
-    variables: PlcVariablesRuntime<S, V>;
+    tasks: PlcTasksRuntime<M, S, V>;
+    variables: PlcVariablesRuntime<M, S, V>;
     mqtt: Record<string, SparkplugNode>;
     sources: PlcSourcesRuntime<S>;
+    restSourceIntervals: Record<string, ReturnType<typeof setInterval>>;
   };
 };
 
