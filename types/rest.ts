@@ -7,10 +7,10 @@ import type {
 
 /**
  * Configuration for a REST-based variable source.
- * 
+ *
  * @template T - The type of the variable value
  */
-export type RestVariableSource<T> = {
+export type RestVariableSource = {
   /** The type identifier for REST sources */
   type: "rest";
   /** The URL endpoint to make requests to */
@@ -25,7 +25,9 @@ export type RestVariableSource<T> = {
   body: (value: number | boolean | string) => string;
   /** Optional callback to transform the response before setting the value */
   onResponse?: (
-    value: T,
+    //TODO: tighten this up later
+    // deno-lint-ignore no-explicit-any
+    value: any,
     variable:
       | PlcVariableNumberRuntimeWithRestSource
       | PlcVariableBooleanRuntimeWithRestSource
@@ -39,42 +41,44 @@ export type RestVariableSource<T> = {
 
 /**
  * Runtime representation of a REST-based variable source.
- * 
+ *
  * @template T - The type of the variable value
  */
-export type PlcVariableRestSourceRuntime<T> =
+export type PlcVariableRestSourceRuntime =
   & PlcVariableSourceRuntimeBase
-  & RestVariableSource<T>;
+  & RestVariableSource;
 
 /**
  * Type that includes a REST source configuration.
- * 
+ *
  * @template T - The type of the variable value
  */
-export type WithRestSource<T> = {
-  source: RestVariableSource<T>;
+export type WithRestSource = {
+  source: RestVariableSource;
 };
 
 /**
  * Runtime type that includes a REST source configuration.
- * 
+ *
  * @template T - The type of the variable value
  */
-export type WithRestSourceRuntime<T> = WithRestSource<T>;
+export type WithRestSourceRuntime = WithRestSource;
 
 /**
  * Type guard function that checks if a given source is a RestVariableSource.
- * 
+ *
  * @template T - The type of the variable value
  * @param {unknown} source - The source object to check
  * @returns {source is RestVariableSource<T>} - Returns true if the source is a valid RestVariableSource, false otherwise
- * 
+ *
  * @description
  * This function performs runtime type checking to verify if an object matches the structure
  * of a RestVariableSource. It checks for the presence of the type property and validates
  * that it equals "rest".
  */
-export const isSourceRest = <T>(source: unknown): source is RestVariableSource<T> =>
+export const isSourceRest = (
+  source: unknown,
+): source is RestVariableSource =>
   typeof source === "object" &&
   source !== null &&
   "type" in source &&
@@ -82,19 +86,19 @@ export const isSourceRest = <T>(source: unknown): source is RestVariableSource<T
 
 /**
  * Type guard function that checks if a given source is a PlcVariableRestSourceRuntime.
- * 
+ *
  * @template T - The type of the variable value
  * @param {unknown} source - The source object to check
  * @returns {source is PlcVariableRestSourceRuntime<T>} - Returns true if the source is a valid PlcVariableRestSourceRuntime, false otherwise
- * 
+ *
  * @description
  * This function performs runtime type checking to verify if an object matches the structure
  * of a PlcVariableRestSourceRuntime. It checks for the presence of required properties
  * and validates that the type property equals "rest".
  */
-export const isVariableRestSourceRuntime = <T>(
+export const isVariableRestSourceRuntime = (
   source: unknown,
-): source is PlcVariableRestSourceRuntime<T> => {
+): source is PlcVariableRestSourceRuntime => {
   if (
     typeof source === "object" &&
     source !== null &&
