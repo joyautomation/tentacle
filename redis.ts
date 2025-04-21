@@ -16,7 +16,7 @@ import type {
 } from "./types/variables.ts";
 import type { PlcSourceRuntime, PlcSources } from "./types/sources.ts";
 import type { PlcConfig } from "./types/types.ts";
-import { PlcMqtts } from "./types/mqtt.ts";
+import type { PlcMqtts } from "./types/mqtt.ts";
 
 let publisher: ReturnType<typeof createClient> | undefined;
 let subscriber: ReturnType<typeof createClient> | undefined;

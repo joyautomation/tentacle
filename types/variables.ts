@@ -4,7 +4,7 @@ import type {
   WithMqttSource,
   WithMqttSourceRuntime,
 } from "./mqtt.ts";
-import { isSourceRest, WithRestSource, WithRestSourceRuntime } from "./rest.ts";
+import { isSourceRest, type WithRestSource, type WithRestSourceRuntime } from "./rest.ts";
 import {
   isSourceModbus,
   isSourceOpcua,

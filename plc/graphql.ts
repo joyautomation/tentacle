@@ -27,12 +27,12 @@ import {
 import {
   isSourceRest,
   isVariableRestSourceRuntime,
-  PlcVariableRestSourceRuntime,
+  type PlcVariableRestSourceRuntime,
 } from "../types/rest.ts";
 import {
   isSourceMqtt,
   isVariableMqttSourceRuntime,
-  PlcVariableMqttSourceRuntime,
+  type PlcVariableMqttSourceRuntime,
 } from "../types/mqtt.ts";
 import {
   type createNode,

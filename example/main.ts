@@ -1,17 +1,14 @@
-import { json } from "node:stream/consumers";
 import {
   createTentacle,
+  type PlcSource,
   type PlcVariableBoolean,
-  PlcVariableNumberWithMqttSource,
+  type PlcVariableNumberWithMqttSource,
 } from "../index.ts";
-import { MqttConnection } from "../types/mqtt.ts";
+import type { MqttConnection } from "../types/mqtt.ts";
 import type {
   PlcVariableBooleanWithRestSource,
   PlcVariableNumber,
-  PlcVariableNumberRuntimeWithRestSource,
-  PlcVariableNumberWithRestSource,
 } from "../types/variables.ts";
-import { type FtirSources, ftirSources } from "./sources/ftir.ts";
 import { customAlphabet } from "nanoid";
 import { pipe } from "@joyautomation/dark-matter";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
@@ -20,7 +17,7 @@ type Mqtts = {
   local: MqttConnection;
 };
 
-type Sources = {}; //FtirSources;
+type Sources = Record<string, PlcSource>; //FtirSources;
 
 type Variables = {
   // FtirVariables & {
@@ -118,7 +115,7 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
         method: "GET",
         headers: {},
         setFromResponse: true,
-        body: (value) => {
+        body: (value:number) => {
           return JSON.stringify({
             code: "request",
             cid: 10,
@@ -128,7 +125,7 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
             },
           });
         },
-        onResponse: (response, variable) => {
+        onResponse: (response:{ data: {value:string}}) => {
           const { data: { value } } = response;
           return value === "01";
         },
@@ -139,12 +136,14 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
       id: "count",
       datatype: "number",
       description: "A counter",
+      decimals: 0,
       default: 0,
     },
     another: {
       id: "another",
       datatype: "number",
       description: "Another counter",
+      decimals: 0,
       default: 2,
     },
     yetAnother: {
@@ -158,6 +157,7 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
       datatype: "number",
       description: "Temperature",
       default: 0,
+      decimals: 2,
       source: {
         id: "local",
         type: "mqtt",

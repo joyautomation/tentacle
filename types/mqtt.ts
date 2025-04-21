@@ -29,26 +29,50 @@ export type MqttConnection = {
   version?: "spBv1.0";
 };
 
+/**
+ * Runtime representation of an MQTT connection with an active client.
+ * 
+ * @extends MqttConnection
+ */
 export type MqttConnectionRuntime = MqttConnection & {
+  /** The active SparkplugNode client instance */
   client: SparkplugNode;
 };
 
+/**
+ * Record of MQTT connections indexed by their IDs.
+ */
 export type PlcMqtts = Record<string, MqttConnection>;
 
+/**
+ * Configuration for an MQTT-based variable source.
+ * 
+ * @template M - Type extending PlcMqtts
+ */
 export type PlcVariableMqttSource<M extends PlcMqtts> = {
+  /** The ID of the MQTT connection to use */
   id:
     & keyof { [K in keyof M]: M[K] extends MqttConnection ? K : never }
     & {
       [K in keyof M]: M[K] extends MqttConnection ? K : never;
     }[keyof M];
+  /** The type identifier for MQTT sources */
   type: "mqtt";
+  /** The MQTT topic to subscribe to */
   topic: string;
+  /** Optional callback to transform the received value */
   onResponse?: (value: number | boolean) => number | boolean;
 };
 
+/**
+ * Runtime representation of an MQTT-based variable source.
+ * 
+ * @template M - Type extending PlcMqtts
+ */
 export type PlcVariableMqttSourceRuntime<M extends PlcMqtts> =
   & PlcVariableMqttSource<M>
   & {
+    /** Error information if the source encountered an error */
     error: {
       error: string | null;
       message?: string | null;
@@ -58,24 +82,51 @@ export type PlcVariableMqttSourceRuntime<M extends PlcMqtts> =
   };
 
 /**
- * Mixin for types that have a Modbus source.
+ * Mixin for types that have an MQTT source.
  *
- * @template S - Type extending PlcSources
- * @property {PlcVariableMqttSource<S>} source - MQTT source configuration
- * @public
+ * @template M - Type extending PlcMqtts
  */
 export type WithMqttSource<M extends PlcMqtts> = {
+  /** The MQTT source configuration */
   source: PlcVariableMqttSource<M>;
 };
 
+/**
+ * Runtime mixin for types that have an MQTT source.
+ *
+ * @template M - Type extending PlcMqtts
+ */
 export type WithMqttSourceRuntime<M extends PlcMqtts> = WithMqttSource<M>;
 
+/**
+ * Type guard function that checks if a given source is an MQTT connection.
+ * 
+ * @param {unknown} source - The source object to check
+ * @returns {source is MqttConnection} - Returns true if the source is a valid MQTT connection, false otherwise
+ * 
+ * @description
+ * This function performs runtime type checking to verify if an object matches the structure
+ * of an MQTT connection. It checks for the presence of the type property and validates
+ * that it equals "mqtt".
+ */
 export const isSourceMqtt = (source: unknown): source is MqttConnection =>
   typeof source === "object" &&
   source !== null &&
   "type" in source &&
   (source as { type: string }).type === "mqtt";
 
+/**
+ * Type guard function that checks if a given source is a PlcVariableMqttSourceRuntime.
+ * 
+ * @template M - Type extending PlcMqtts
+ * @param {unknown} source - The source object to check
+ * @returns {source is PlcVariableMqttSourceRuntime<M>} - Returns true if the source is a valid PlcVariableMqttSourceRuntime, false otherwise
+ * 
+ * @description
+ * This function performs runtime type checking to verify if an object matches the structure
+ * of a PlcVariableMqttSourceRuntime. It checks for the presence of required properties
+ * and validates that the type property equals "mqtt".
+ */
 export const isVariableMqttSourceRuntime = <M extends PlcMqtts>(
   source: unknown,
 ): source is PlcVariableMqttSourceRuntime<M> => {

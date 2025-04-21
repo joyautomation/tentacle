@@ -28,7 +28,6 @@ import {
   isVariableNumber,
   isVariableString,
   isVariableUdt,
-  type PlcVariableRuntimeWithSource,
   type PlcVariables,
   type PlcVariablesRuntime,
 } from "../types/variables.ts";
@@ -44,10 +43,8 @@ import {
   publishVariables,
   setVariableValuesFromRedis,
 } from "../redis.ts";
-import { logs } from "../log.ts";
-import { PlcMqtts } from "../types/mqtt.ts";
+import type { PlcMqtts } from "../types/mqtt.ts";
 import { sendRestRequest } from "../rest.ts";
-const log = logs.main;
 
 export async function createRedis<
   M extends PlcMqtts,
