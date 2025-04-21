@@ -31,8 +31,8 @@ export type MqttConnection = {
 
 export type MqttConnectionRuntime = MqttConnection & {
   client: SparkplugNode;
-}
-  
+};
+
 export type PlcMqtts = Record<string, MqttConnection>;
 
 export type PlcVariableMqttSource<M extends PlcMqtts> = {
@@ -44,16 +44,18 @@ export type PlcVariableMqttSource<M extends PlcMqtts> = {
   type: "mqtt";
   topic: string;
   onResponse?: (value: number | boolean) => number | boolean;
-}
+};
 
-export type PlcVariableMqttSourceRuntime<M extends PlcMqtts> = PlcVariableMqttSource<M> & {
-  error: {
-    error: string | null;
-    message?: string | null;
-    stack?: string | null;
-    timestamp: Date;
-  } | null;
-}
+export type PlcVariableMqttSourceRuntime<M extends PlcMqtts> =
+  & PlcVariableMqttSource<M>
+  & {
+    error: {
+      error: string | null;
+      message?: string | null;
+      stack?: string | null;
+      timestamp: Date;
+    } | null;
+  };
 
 /**
  * Mixin for types that have a Modbus source.
@@ -67,9 +69,28 @@ export type WithMqttSource<M extends PlcMqtts> = {
 };
 
 export type WithMqttSourceRuntime<M extends PlcMqtts> = WithMqttSource<M>;
-  
+
 export const isSourceMqtt = (source: unknown): source is MqttConnection =>
   typeof source === "object" &&
   source !== null &&
   "type" in source &&
   (source as { type: string }).type === "mqtt";
+
+export const isVariableMqttSourceRuntime = <M extends PlcMqtts>(
+  source: unknown,
+): source is PlcVariableMqttSourceRuntime<M> => {
+  if (
+    typeof source === "object" &&
+    source !== null &&
+    "type" in source &&
+    "id" in source &&
+    "topic" in source &&
+    "onResponse" in source
+  ) {
+    const { type } = source as {
+      type: string;
+    };
+    return type === "mqtt";
+  }
+  return false;
+};

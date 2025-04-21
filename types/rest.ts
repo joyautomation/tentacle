@@ -1,3 +1,4 @@
+import { PlcVariableSourceRuntimeBase } from "./sources.ts";
 import {
   PlcVariableBooleanRuntimeWithRestSource,
   PlcVariableNumberRuntimeWithRestSource,
@@ -22,14 +23,9 @@ export type RestVariableSource = {
   setFromResponse: boolean;
 };
 
-export type RestVariableSourceRuntime = RestVariableSource & {
-  error: {
-    error: string | null;
-    message?: string | null;
-    stack?: string | null;
-    timestamp: Date;
-  } | null;
-};
+export type PlcVariableRestSourceRuntime =
+  & PlcVariableSourceRuntimeBase
+  & RestVariableSource;
 
 export type WithRestSource = {
   source: RestVariableSource;
@@ -42,3 +38,27 @@ export const isSourceRest = (source: unknown): source is RestVariableSource =>
   source !== null &&
   "type" in source &&
   source.type === "rest";
+
+export const isVariableRestSourceRuntime = (
+  source: unknown,
+): source is PlcVariableRestSourceRuntime => {
+  if (
+    typeof source === "object" &&
+    source !== null &&
+    "type" in source &&
+    "url" in source &&
+    "rate" in source &&
+    "method" in source &&
+    "headers" in source &&
+    "body" in source &&
+    "onResponse" in source &&
+    "timeout" in source &&
+    "setFromResponse" in source
+  ) {
+    const { type } = source as {
+      type: string;
+    };
+    return type === "rest";
+  }
+  return false;
+};

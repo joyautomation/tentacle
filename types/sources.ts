@@ -327,20 +327,14 @@ export const isVariableModbusSourceRuntime = <S extends PlcSources>(
     typeof source === "object" &&
     source !== null &&
     "type" in source &&
-    "error" in source &&
     "register" in source &&
     "registerType" in source &&
     "format" in source
   ) {
-    const { type, error } = source as {
+    const { type } = source as {
       type: string;
-      error: {
-        error: string | null;
-        message?: string | null;
-        stack?: string | null;
-      };
     };
-    return type === "modbus" && typeof error === "object" && "error" in source;
+    return type === "modbus";
   }
   return false;
 };
@@ -359,18 +353,12 @@ export const isVariableOpcuaSourceRuntime = <S extends PlcSources>(
   if (
     typeof source === "object" &&
     source !== null &&
-    "type" in source &&
-    "error" in source
+    "type" in source
   ) {
-    const { type, error } = source as {
+    const { type } = source as {
       type: string;
-      error: {
-        error: string | null;
-        message?: string | null;
-        stack?: string | null;
-      };
     };
-    return type === "opcua" && typeof error === "object" && "error" in source;
+    return type === "opcua";
   }
   return false;
 };
