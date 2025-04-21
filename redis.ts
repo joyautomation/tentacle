@@ -16,6 +16,7 @@ import type {
 } from "./types/variables.ts";
 import type { PlcSourceRuntime, PlcSources } from "./types/sources.ts";
 import type { PlcConfig } from "./types/types.ts";
+import type { PlcMqtts } from "./types/mqtt.ts";
 
 let publisher: ReturnType<typeof createClient> | undefined;
 let subscriber: ReturnType<typeof createClient> | undefined;
@@ -35,9 +36,10 @@ export function validateRedisUrl(url: string | undefined): Result<string> {
 }
 
 function createRedisConnectionString<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>) {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>) {
   const redisUrlResult = validateRedisUrl(config.redisUrl);
   if (isSuccess(redisUrlResult)) {
     log.debug("redis url config valid: ", redisUrlResult.output);
@@ -48,9 +50,10 @@ function createRedisConnectionString<
 }
 
 export async function getPublisher<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>) {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>) {
   const url = createRedisConnectionString(config);
   try {
     if (!publisher) {
@@ -68,9 +71,10 @@ export async function getPublisher<
 }
 
 export async function getPublisherRetry<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>, maxRetries: number, delay: number) {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>, maxRetries: number, delay: number) {
   let retries = 0;
   while (retries < maxRetries) {
     const publisherResult = await getPublisher(config);
@@ -84,9 +88,10 @@ export async function getPublisherRetry<
 }
 
 export async function getSubscriber<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>) {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>) {
   const url = createRedisConnectionString(config);
   try {
     if (!subscriber) {
@@ -105,9 +110,10 @@ export async function getSubscriber<
 }
 
 export async function getSubscriberRetry<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
->(config: PlcConfig<S, V>, maxRetries: number, delay: number) {
+  V extends PlcVariables<M, S>,
+>(config: PlcConfig<M, S, V>, maxRetries: number, delay: number) {
   let retries = 0;
   while (retries < maxRetries) {
     const subscriberResult = await getSubscriber(config);
@@ -140,23 +146,24 @@ export async function publish(
   }
 }
 
-export async function publishVariable<S extends PlcSources>(
+export async function publishVariable<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
   publisher: ReturnType<typeof createClient>,
-  variable: PlcVariableRuntime<S>,
+  variable: PlcVariableRuntime<M, S>,
 ) {
   const valueString = JSON.stringify(variable.value);
   await publish(publisher, `plc.variables.${variable.id}`, valueString);
 }
 
 export async function publishVariables<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<M, S>,
 >(
   publisher: ReturnType<typeof createClient>,
-  variables: PlcVariablesRuntime<S, V>,
+  variables: PlcVariablesRuntime<M, S, V>,
 ) {
   const keyValuePairs = Object.values(variables).flatMap(
-    (variable: PlcVariableRuntime<S>) => [
+    (variable: PlcVariableRuntime<M, S>) => [
       `plc.variables.${variable.id}`,
       JSON.stringify(variable.value),
     ],
@@ -179,11 +186,12 @@ export async function getAllValues(redis: ReturnType<typeof createClient>) {
 }
 
 export async function setVariableValuesFromRedis<
+  M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<S>,
+  V extends PlcVariables<M, S>,
 >(
   redis: ReturnType<typeof createClient>,
-  variables: PlcVariablesRuntime<S, V>,
+  variables: PlcVariablesRuntime<M, S, V>,
 ) {
   const values = await getAllValues(redis);
   Object.entries(variables).forEach(([key, variable]) => {
@@ -196,10 +204,7 @@ export async function setVariableValuesFromRedis<
   });
 }
 
-export async function getSourceEnablesFromRedis<
-  S extends PlcSources,
-  V extends PlcVariables<S>,
->(redis: ReturnType<typeof createClient>) {
+export async function getSourceEnablesFromRedis(redis: ReturnType<typeof createClient>) {
   const keys = await redis.keys("plc.sources.*");
   if (keys.length === 0) return {};
   const values = await redis.mGet(keys);

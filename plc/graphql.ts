@@ -2,7 +2,6 @@ import { pubsub } from "../pubsub.ts";
 
 import type { getBuilder } from "@joyautomation/conch";
 import type {
-  MqttConnection,
   Plc,
   PlcConfig,
   PlcTask,
@@ -26,35 +25,53 @@ import {
   type PlcVariableOpcuaSourceRuntime,
 } from "../types/sources.ts";
 import {
+  isSourceRest,
+  isVariableRestSourceRuntime,
+  type PlcVariableRestSourceRuntime,
+} from "../types/rest.ts";
+import {
+  isSourceMqtt,
+  isVariableMqttSourceRuntime,
+  type PlcVariableMqttSourceRuntime,
+} from "../types/mqtt.ts";
+import {
   type createNode,
   getNodeStateString,
   type SparkplugNode,
 } from "@joyautomation/synapse";
 import { GraphQLError } from "graphql";
 import { getModbusStateString } from "../modbus/client.ts";
-// import { getModbusStateString } from "../modbus/client.ts";
+import type { MqttConnection, PlcMqtts } from "../types/mqtt.ts";
 
-export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
-  builder: ReturnType<typeof getBuilder<{ plc: Plc<S, V> }>>,
+export function addPlcToSchema<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>,
+>(
+  builder: ReturnType<typeof getBuilder<{ plc: Plc<M, S, V> }>>,
 ) {
-  const PlcRef = builder.objectRef<Plc<S, V>>("Plc");
-  const PlcConfigRef = builder.objectRef<PlcConfig<S, V>>("PlcConfig");
-  const PlcConfigTaskRef = builder.objectRef<PlcTask<S, V>>("PlcTask");
-  const PlcConfigVariableRef = builder.objectRef<PlcVariable<S>>("PlcVariable");
+  const PlcRef = builder.objectRef<Plc<M, S, V>>("Plc");
+  const PlcConfigRef = builder.objectRef<PlcConfig<M, S, V>>("PlcConfig");
+  const PlcConfigTaskRef = builder.objectRef<PlcTask<M, S, V>>("PlcTask");
+  const PlcConfigVariableRef = builder.objectRef<PlcVariable<M, S>>(
+    "PlcVariable",
+  );
   const PlcConfigMqttRef = builder.objectRef<MqttConnection>("PlcMqttConfig");
   const PlcConfigSourcesRef = builder.objectRef<PlcSource>("PlcSourcesConfig");
 
-  const PlcRuntimeRef = builder.objectRef<Plc<S, V>["runtime"]>("PlcRuntime");
-  const PlcRuntimeTaskRef = builder.objectRef<PlcTaskRuntime<S, V>>(
+  const PlcRuntimeRef = builder.objectRef<Plc<M, S, V>["runtime"]>(
+    "PlcRuntime",
+  );
+  const PlcRuntimeTaskRef = builder.objectRef<PlcTaskRuntime<M, S, V>>(
     "PlcTaskRuntime",
   );
   const PlcRuntimeTaskMetricsRef = builder.objectRef<
-    PlcTaskRuntime<S, V>["metrics"]
+    PlcTaskRuntime<M, S, V>["metrics"]
   >("PlcTaskMetrics");
   const PlcRuntimeTaskErrorRef = builder.objectRef<
-    PlcTaskRuntime<S, V>["error"]
+    PlcTaskRuntime<M, S, V>["error"]
   >("PlcTaskError");
-  const PlcRuntimeVariableRef = builder.objectRef<PlcVariableRuntime<S>>(
+  const PlcRuntimeVariableRef = builder.objectRef<PlcVariableRuntime<M, S>>(
     "PlcVariableRuntime",
   );
   const PlcRuntimeVariableModbusSourceRef = builder.objectRef<
@@ -63,25 +80,38 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
   const PlcRuntimeVariableOpcuaSourceRef = builder.objectRef<
     PlcVariableOpcuaSourceRuntime<S>
   >("PlcVariableOpcuaSourceRuntime");
-  const PlcRuntimeVariableErrorRef = builder.objectRef<{
-    error: string | null;
-    message?: string | null;
-    stack?: string | null;
-  }>("PlcVariableError");
+  const PlcRuntimeVariableRestSourceRef = builder.objectRef<
+    PlcVariableRestSourceRuntime
+  >("PlcVariableRestSourceRuntime");
+  const PlcRuntimeVariableMqttSourceRef = builder.objectRef<
+    PlcVariableMqttSourceRuntime<M>
+  >("PlcVariableMqttSourceRuntime");
+  const PlcRuntimeVariableErrorRef = builder.objectRef<
+    {
+      error: string | null;
+      message?: string | null;
+      stack?: string | null;
+      timestamp: Date;
+    } | null
+  >("PlcVariableError");
 
   PlcRuntimeVariableErrorRef.implement({
     fields: (t) => ({
       error: t.string({
         nullable: true,
-        resolve: (parent) => parent.error,
+        resolve: (parent) => parent?.error,
       }),
       message: t.string({
         nullable: true,
-        resolve: (parent) => parent.message || null,
+        resolve: (parent) => parent?.message || null,
       }),
       stack: t.string({
         nullable: true,
-        resolve: (parent) => parent.stack || null,
+        resolve: (parent) => parent?.stack || null,
+      }),
+      timestamp: t.string({
+        nullable: true,
+        resolve: (parent) => parent?.timestamp?.toISOString() || null,
       }),
     }),
   });
@@ -97,6 +127,8 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
       types: [
         PlcRuntimeVariableModbusSourceRef,
         PlcRuntimeVariableOpcuaSourceRef,
+        PlcRuntimeVariableRestSourceRef,
+        PlcRuntimeVariableMqttSourceRef,
       ],
       resolveType: (source) => {
         if (isSourceModbus(source)) {
@@ -104,6 +136,12 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
         }
         if (isSourceOpcua(source)) {
           return "PlcVariableOpcuaSourceRuntime";
+        }
+        if (isSourceRest(source)) {
+          return "PlcVariableRestSourceRuntime";
+        }
+        if (isSourceMqtt(source)) {
+          return "PlcVariableMqttSourceRuntime";
         }
         return undefined;
       },
@@ -162,11 +200,11 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
     fields: (t) => ({
       tasks: t.field({
         type: [PlcConfigTaskRef],
-        resolve: (parent) => flatten<PlcTask<S, V>>(parent.tasks),
+        resolve: (parent) => flatten<PlcTask<M, S, V>>(parent.tasks),
       }),
       variables: t.field({
         type: [PlcConfigVariableRef],
-        resolve: (parent) => flatten<PlcVariable<S>>(parent.variables),
+        resolve: (parent) => flatten<PlcVariable<M, S>>(parent.variables),
       }),
       mqtt: t.field({
         type: [PlcConfigMqttRef],
@@ -180,7 +218,6 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
   });
   PlcRuntimeMqttRef.implement({
     fields: (t) => ({
-      id: t.exposeString("id"),
       brokerUrl: t.exposeString("brokerUrl", {
         nullable: true,
       }),
@@ -261,11 +298,43 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
       }),
     }),
   });
+  PlcRuntimeVariableRestSourceRef.implement({
+    fields: (t) => ({
+      type: t.exposeString("type"),
+      url: t.exposeString("url"),
+      rate: t.exposeInt("rate"),
+      method: t.exposeString("method"),
+      onResponse: t.field({
+        type: PlcRuntimeVariableErrorRef,
+        resolve: (parent) => parent.error,
+      }),
+      timeout: t.exposeInt("timeout"),
+      setFromResponse: t.exposeBoolean("setFromResponse"),
+    }),
+  });
+  PlcRuntimeVariableMqttSourceRef.implement({
+    fields: (t) => ({
+      id: t.string({
+        resolve: (parent) => parent.id.toString(),
+      }),
+      type: t.exposeString("type"),
+      topic: t.exposeString("topic"),
+      onResponse: t.field({
+        type: PlcRuntimeVariableErrorRef,
+        resolve: (parent) => parent.error,
+      }),
+    }),
+  });
   PlcRuntimeVariableRef.implement({
     fields: (t) => ({
       id: t.exposeString("id"),
       description: t.exposeString("description"),
       datatype: t.exposeString("datatype"),
+      decimals: t.int({
+        nullable: true,
+        resolve: (parent) =>
+          parent.datatype === "number" ? parent.decimals : null,
+      }),
       default: t.string({
         resolve: (parent) => parent.default?.toString(),
       }),
@@ -278,6 +347,10 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
           return null;
         },
       }),
+      error: t.field({
+        type: PlcRuntimeVariableErrorRef,
+        resolve: (parent) => parent.error,
+      }),
       source: t.field({
         type: PlcRuntimeVariableSourceRef,
         nullable: true,
@@ -288,6 +361,12 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
               return source;
             }
             if (isVariableOpcuaSourceRuntime(source)) {
+              return source;
+            }
+            if (isVariableRestSourceRuntime(source)) {
+              return source;
+            }
+            if (isVariableMqttSourceRuntime(source)) {
               return source;
             }
           }
@@ -342,11 +421,12 @@ export function addPlcToSchema<S extends PlcSources, V extends PlcVariables<S>>(
     fields: (t) => ({
       tasks: t.field({
         type: [PlcRuntimeTaskRef],
-        resolve: (parent) => flatten<PlcTaskRuntime<S, V>>(parent.tasks),
+        resolve: (parent) => flatten<PlcTaskRuntime<M, S, V>>(parent.tasks),
       }),
       variables: t.field({
         type: [PlcRuntimeVariableRef],
-        resolve: (parent) => flatten<PlcVariableRuntime<S>>(parent.variables),
+        resolve: (parent) =>
+          flatten<PlcVariableRuntime<M, S>>(parent.variables),
       }),
       mqtt: t.field({
         type: [PlcRuntimeMqttRef],
