@@ -135,7 +135,7 @@ export function createPlcMqtt<
   for (const [mqttKey, config] of Object.entries(mqtt)) {
     if (config.enabled) {
       resultMqtt[mqttKey] = createNode({
-        id: mqttKey,
+        id: config.nodeId,
         brokerUrl: config.serverUrl,
         username: config.username,
         password: config.password,
@@ -172,8 +172,13 @@ export function createPlcMqtt<
               acc[`${variable.source.topic}`] = Object.fromEntries(
                 Object.entries(sourceVariables).filter(
                   ([_, v]) => {
+<<<<<<< HEAD
                     return v.source.topic === variable.source.topic
                   }
+=======
+                    return v.source.topic === variable.source.topic;
+                  },
+>>>>>>> timestamp
                 ),
               ) as PlcVariablesRuntime<M, S, V>;
             }
