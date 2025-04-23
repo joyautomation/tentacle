@@ -484,6 +484,7 @@ export function addPlcToSchema<
       type: PlcRef,
       resolve: (_, args, context) => {
         const { variableId, value } = args;
+        console.log("setValue", variableId, value);
         const plc = context.plc;
         if (!plc.runtime.variables[variableId]) {
           throw new GraphQLError(`Variable ${variableId} not found`);
