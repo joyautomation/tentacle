@@ -264,7 +264,7 @@ export function startRestSourceIntervals<
           if (isSuccess(result)) {
             if (variable.source.setFromResponse) {
               const value = variable.source.onResponse
-                ? variable.source.onResponse(result.output, variable)
+                ? await variable.source.onResponse(result.output, variable)
                 : result.output;
               updateRuntimeValue(plc, variableId, value);
             }
@@ -336,7 +336,7 @@ export function startSourceIntervals<
                 );
                 if (isSuccess(result)) {
                   const value = variable.source.onResponse
-                    ? variable.source.onResponse(result.output)
+                    ? await variable.source.onResponse(result.output)
                     : result.output;
                   updateRuntimeValue(plc, variableId, value);
                   clearRuntimeError(plc, variableId);

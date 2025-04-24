@@ -1,10 +1,6 @@
 {
   "name": "@joyautomation/tentacle",
-<<<<<<< HEAD
-  "version": "0.0.14",
-=======
   "version": "0.0.15",
->>>>>>> timestamp
   "description": "Tentacle is a modern soft PLC",
   "author": "Joy Automation",
   "license": "Apache-2.0",

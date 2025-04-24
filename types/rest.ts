@@ -32,7 +32,7 @@ export type RestVariableSource = {
       | PlcVariableNumberRuntimeWithRestSource
       | PlcVariableBooleanRuntimeWithRestSource
       | PlcVariableStringRuntimeWithRestSource,
-  ) => number | boolean | string;
+  ) => number | boolean | string | Promise<number | boolean | string>;
   /** Request timeout in milliseconds */
   timeout: number;
   /** Whether to update the variable value from the response */
