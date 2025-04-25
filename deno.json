@@ -19,7 +19,7 @@
     "@joyautomation/conch": "jsr:@joyautomation/conch@^0.0.22",
     "@joyautomation/coral": "jsr:@joyautomation/coral@^0.0.12",
     "@joyautomation/dark-matter": "jsr:@joyautomation/dark-matter@^0.0.26",
-    "@joyautomation/synapse": "jsr:@joyautomation/synapse@^0.0.75",
+    "@joyautomation/synapse": "jsr:@joyautomation/synapse@^0.0.76",
     "@std/assert": "jsr:@std/assert@1",
     "@std/cli": "jsr:@std/cli@^1.0.6",
     "@std/expect": "jsr:@std/expect@^1.0.13",
@@ -32,7 +32,6 @@
     "modbus-serial": "npm:modbus-serial@8.0.5-no-serial-port",
     "nanoid": "npm:nanoid@^5.1.5",
     "pothos": "npm:pothos@^0.0.1",
-    "ramda": "npm:ramda@^0.30.1",
     "redis": "npm:redis@^4.7.0",
     "sparkplug-payload": "npm:sparkplug-payload@1.0.3"
   },

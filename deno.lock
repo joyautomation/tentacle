@@ -9,7 +9,7 @@
     "jsr:@joyautomation/coral@^0.0.10": "0.0.10",
     "jsr:@joyautomation/coral@^0.0.12": "0.0.12",
     "jsr:@joyautomation/dark-matter@^0.0.26": "0.0.26",
-    "jsr:@joyautomation/synapse@^0.0.75": "0.0.75",
+    "jsr:@joyautomation/synapse@^0.0.76": "0.0.76",
     "jsr:@std/assert@0.223": "0.223.0",
     "jsr:@std/assert@0.226": "0.226.0",
     "jsr:@std/assert@1": "1.0.11",
@@ -54,7 +54,6 @@
     "npm:nanoid@^5.1.5": "5.1.5",
     "npm:pako@^2.1.0": "2.1.0",
     "npm:pothos@^0.0.1": "0.0.1",
-    "npm:ramda@~0.30.1": "0.30.1",
     "npm:redis@^4.7.0": "4.7.0_@redis+client@1.6.0",
     "npm:sparkplug-payload@1.0.3": "1.0.3",
     "npm:sparkplug-payload@^1.0.3": "1.0.3"
@@ -112,8 +111,8 @@
     "@joyautomation/dark-matter@0.0.26": {
       "integrity": "7276ddefea2448937b72ada91b3adb86efe4f01032c1dd7915900b59201cba2e"
     },
-    "@joyautomation/synapse@0.0.75": {
-      "integrity": "fdfb2e40d90ac37388e13d406d85024ce4219fbd1c9bd7f2d11b72c888d0efe6",
+    "@joyautomation/synapse@0.0.76": {
+      "integrity": "9ed4e47ca707dc0115424bbd3a45fdc6dd018d9249ed2b8051071f4f2b32c227",
       "dependencies": [
         "jsr:@joyautomation/coral@^0.0.12",
         "jsr:@joyautomation/dark-matter",
@@ -718,9 +717,6 @@
         "long@4.0.0"
       ]
     },
-    "ramda@0.30.1": {
-      "integrity": "sha512-tEF5I22zJnuclswcZMc8bDIrwRHRzf+NqVEmqg50ShAZMP7MWeR/RGDthfM/p+BlqvF2fXAzpn8i+SJcYD3alw=="
-    },
     "readable-stream@3.6.2": {
       "integrity": "sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==",
       "dependencies": [
@@ -988,7 +984,7 @@
       "jsr:@joyautomation/conch@^0.0.22",
       "jsr:@joyautomation/coral@^0.0.12",
       "jsr:@joyautomation/dark-matter@^0.0.26",
-      "jsr:@joyautomation/synapse@^0.0.75",
+      "jsr:@joyautomation/synapse@^0.0.76",
       "jsr:@std/assert@1",
       "jsr:@std/cli@^1.0.6",
       "jsr:@std/expect@^1.0.13",
@@ -1001,7 +997,6 @@
       "npm:modbus-serial@8.0.5-no-serial-port",
       "npm:nanoid@^5.1.5",
       "npm:pothos@^0.0.1",
-      "npm:ramda@~0.30.1",
       "npm:redis@^4.7.0",
       "npm:sparkplug-payload@1.0.3"
     ]
