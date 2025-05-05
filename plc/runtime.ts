@@ -335,7 +335,7 @@ export function startSourceIntervals<
                     variable.source.register,
                     variable.source.registerType,
                     source.client,
-                    //@ts-ignore fix type later
+                    //@ts-ignore fix type
                     currentVariable.value,
                   );
                   if (isFail(writeResult)) {
