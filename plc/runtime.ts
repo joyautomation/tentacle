@@ -35,6 +35,7 @@ import {
   createModbus,
   type createModbusErrorProperties,
   readModbus,
+  writeModbus,
 } from "../modbus/client.ts";
 import {
   getPublisher,
@@ -334,6 +335,18 @@ export function startSourceIntervals<
                   variable.source.format,
                   source.client,
                 );
+                if (variable.source.bidirectional && (variable.source.registerType === "COIL" || variable.source.registerType === "HOLDING_REGISTER")) {
+                  const writeResult = await writeModbus(
+                    variable.source.register,
+                    variable.source.registerType,
+                    source.client,
+                    //@ts-ignore well add this back to the type later too
+                    variable.value,
+                  );
+                  if (isFail(writeResult)) {
+                    updateRuntimeError(plc, variableId, writeResult.error);
+                  }
+                }
                 if (isSuccess(result)) {
                   const value = variable.source.onResponse
                     ? variable.source.onResponse(result.output)

@@ -403,7 +403,7 @@ export async function readModbus(
     INPUT_REGISTER: modbus.client.readInputRegisters.bind(modbus.client),
     COIL: modbus.client.readCoils.bind(modbus.client),
     DISCRETE_INPUT: modbus.client.readDiscreteInputs.bind(modbus.client),
-  };
+  }
 
   const result = await Promise.race([
     functionMap[registerType](register, quantity)
@@ -422,3 +422,44 @@ export async function readModbus(
   }
   return createFail("Unknown result type");
 }
+
+export type ModbusWriteFunctions = {
+  HOLDING_REGISTER: ModbusClient["writeRegisters"];
+  COIL: ModbusClient["writeCoils"];
+};
+
+export async function writeModbus(
+  register: number,
+  registerType: "HOLDING_REGISTER" | "COIL",
+  modbus: Modbus,
+  value: number | boolean,
+): Promise<Result<void>> {
+  if (!modbus.states.connected) {
+    return createFail(
+      `Cannot write modbus: Not connected (State: ${
+        getModbusStateString(
+          modbus,
+        )
+      })`,
+    );
+  }
+
+  const functionMap: ModbusWriteFunctions = {
+    HOLDING_REGISTER: modbus.client.writeRegisters.bind(modbus.client),
+    COIL: modbus.client.writeCoils.bind(modbus.client),
+  }
+
+  const result = await Promise.race([
+    // @ts-ignore fix this type problem later
+    functionMap[registerType](register, [value])
+      .then(() => createSuccess(undefined))
+      .catch((error) => createFail(error)),
+    timeoutPromise(3000),
+  ]);
+
+  if (isFail(result)) {
+    return result;
+  }
+  return createSuccess(undefined);
+}
+  
