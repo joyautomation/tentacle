@@ -46,6 +46,8 @@ import {
 } from "../redis.ts";
 import type { PlcMqtts } from "../types/mqtt.ts";
 import { sendRestRequest } from "../rest.ts";
+import { logs } from "../log.ts";
+const log = logs.main;
 
 export async function createRedis<
   M extends PlcMqtts,
@@ -331,6 +333,7 @@ export function startSourceIntervals<
               if (source.client?.states.connected && source.enabled) {
                 if (variable.source.bidirectional && (variable.source.registerType === "COIL" || variable.source.registerType === "HOLDING_REGISTER")) {
                   const currentVariable = plc.runtime.variables[variableId];
+                  log.debug(`Writing to modbus ${source.id} - ${variableId} = ${currentVariable.value}`);
                   const writeResult = await writeModbus(
                     variable.source.register,
                     variable.source.registerType,
@@ -342,20 +345,22 @@ export function startSourceIntervals<
                     updateRuntimeError(plc, variableId, writeResult.error);
                   }
                 }
-                const result = await readModbus(
-                  variable.source.register,
-                  variable.source.registerType,
-                  variable.source.format,
-                  source.client,
-                );
-                if (isSuccess(result)) {
-                  const value = variable.source.onResponse
-                    ? variable.source.onResponse(result.output)
-                    : result.output;
-                  updateRuntimeValue(plc, variableId, value);
-                  clearRuntimeError(plc, variableId);
-                } else {
-                  updateRuntimeError(plc, variableId, result.error);
+                if (!variable.source.bidirectional) {
+                  const result = await readModbus(
+                    variable.source.register,
+                    variable.source.registerType,
+                    variable.source.format,
+                    source.client,
+                  );
+                  if (isSuccess(result)) {
+                    const value = variable.source.onResponse
+                      ? variable.source.onResponse(result.output)
+                      : result.output;
+                    updateRuntimeValue(plc, variableId, value);
+                    clearRuntimeError(plc, variableId);
+                  } else {
+                    updateRuntimeError(plc, variableId, result.error);
+                  }
                 }
               }
             }
