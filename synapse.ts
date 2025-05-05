@@ -181,7 +181,6 @@ export function createPlcMqtt<
           },
           {} as Record<string, PlcVariablesRuntime<M, S, V>>,
         );
-        // console.log('topics', Object.keys(topics).map((key) => Object.keys(topics[key])))
         const handlers: Record<
           string,
           (topic: string, message: Buffer) => void

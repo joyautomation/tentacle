@@ -329,24 +329,25 @@ export function startSourceIntervals<
           for (const [variableId, variable] of Object.entries(variables)) {
             if (hasModbusSource(variable)) {
               if (source.client?.states.connected && source.enabled) {
+                if (variable.source.bidirectional && (variable.source.registerType === "COIL" || variable.source.registerType === "HOLDING_REGISTER")) {
+                  const currentVariable = plc.runtime.variables[variableId];
+                  const writeResult = await writeModbus(
+                    variable.source.register,
+                    variable.source.registerType,
+                    source.client,
+                    //@ts-ignore fix type later
+                    currentVariable.value,
+                  );
+                  if (isFail(writeResult)) {
+                    updateRuntimeError(plc, variableId, writeResult.error);
+                  }
+                }
                 const result = await readModbus(
                   variable.source.register,
                   variable.source.registerType,
                   variable.source.format,
                   source.client,
                 );
-                if (variable.source.bidirectional && (variable.source.registerType === "COIL" || variable.source.registerType === "HOLDING_REGISTER")) {
-                  const writeResult = await writeModbus(
-                    variable.source.register,
-                    variable.source.registerType,
-                    source.client,
-                    //@ts-ignore well add this back to the type later too
-                    variable.value,
-                  );
-                  if (isFail(writeResult)) {
-                    updateRuntimeError(plc, variableId, writeResult.error);
-                  }
-                }
                 if (isSuccess(result)) {
                   const value = variable.source.onResponse
                     ? variable.source.onResponse(result.output)
