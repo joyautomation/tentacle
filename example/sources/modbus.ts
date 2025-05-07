@@ -4,10 +4,14 @@ export const getModbusConfigBase = ({
   id,
   host,
   description,
+  reverseBits = false,
+  reverseWords = false,
 }: {
   id: string;
   description: string;
   host: string;
+  reverseBits?: boolean;
+  reverseWords?: boolean;
 }): PlcModbusSource => ({
   id,
   description,
@@ -17,8 +21,8 @@ export const getModbusConfigBase = ({
   host,
   port: 502,
   unitId: 1,
-  reverseBits: false,
-  reverseWords: false,
+  reverseBits,
+  reverseWords,
   timeout: 3000,
   retryMinDelay: 1000,
   retryMaxDelay: 60000,

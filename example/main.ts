@@ -2,23 +2,30 @@ import {
   createTentacle,
   type PlcSource,
   type PlcVariableNumberWithMqttSource,
+  type PlcVariableNumberWithModbusSource,
+  PlcModbusSource,
 } from "../index.ts";
 import type { MqttConnection } from "../types/mqtt.ts";
 import type { PlcVariableNumber } from "../types/variables.ts";
 import { customAlphabet } from "nanoid";
 import { pipe } from "@joyautomation/dark-matter";
+import { ftirSources, FtirSources } from "./sources/ftir.ts";
+import { getModbusConfigBase } from "./sources/modbus.ts";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
 
 type Mqtts = {
   local: MqttConnection;
 };
 
-type Sources = Record<string, PlcSource>; //FtirSources;
+type Sources = {
+  modbus: PlcModbusSource;
+};
 
 type Variables = {
   // FtirVariables & {
   count: PlcVariableNumber;
   temperature: PlcVariableNumberWithMqttSource<Mqtts>;
+  modbusValue: PlcVariableNumberWithModbusSource<Sources>;
 };
 
 const hexToValue = (hexString: string) =>
@@ -82,9 +89,33 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
     },
   },
   sources: {
-    // ...ftirSources,
+    modbus: getModbusConfigBase({
+      id: `modbus`,
+      host: `10.154.92.36`,
+      description: `Modbus Source`,
+      reverseBits: false,
+    }),
   },
   variables: {
+    modbusValue: {
+      id: "modbusValue",
+      datatype: "number" as const,
+      decimals: 2,
+      description: "Modbus Value",
+      default: 0,
+      deadband: {
+        maxTime: 60000,
+        value: 0.001,
+      },
+      source: {
+        id: "modbus",
+        type: "modbus" as const,
+        rate: 1000,
+        register: 2,
+        registerType: "INPUT_REGISTER" as const,
+        format: "INT16" as const,
+      },
+    },
     count: {
       id: "count",
       datatype: "number",

@@ -33,9 +33,10 @@ import {
 } from "../types/variables.ts";
 import {
   createModbus,
-  type createModbusErrorProperties,
+  createModbusErrorProperties,
   readModbus,
   writeModbus,
+  failModbus
 } from "../modbus/client.ts";
 import {
   getPublisher,
@@ -330,6 +331,7 @@ export function startSourceIntervals<
         setInterval(async () => {
           for (const [variableId, variable] of Object.entries(variables)) {
             if (hasModbusSource(variable)) {
+              log.debug(`Modbus interval scanned, client connected is ${source.client?.states.connected}, and source enabled is ${source.enabled}`);
               if (source.client?.states.connected && source.enabled) {
                 if (variable.source.bidirectional && (variable.source.registerType === "COIL" || variable.source.registerType === "HOLDING_REGISTER")) {
                   const currentVariable = plc.runtime.variables[variableId];
@@ -342,10 +344,13 @@ export function startSourceIntervals<
                     currentVariable.value,
                   );
                   if (isFail(writeResult)) {
+                    log.warn(`Failed to write to modbus ${source.id} - ${variableId}: ${writeResult.error}`);
                     updateRuntimeError(plc, variableId, writeResult.error);
                   }
+                  clearRuntimeError(plc, variableId);
                 }
                 if (!variable.source.bidirectional) {
+                  log.debug(`Reading from modbus ${source.id} - ${variableId}`);
                   const result = await readModbus(
                     variable.source.register,
                     variable.source.registerType,
@@ -359,7 +364,11 @@ export function startSourceIntervals<
                     updateRuntimeValue(plc, variableId, value);
                     clearRuntimeError(plc, variableId);
                   } else {
-                    updateRuntimeError(plc, variableId, result.error);
+                    log.warn(`Failed to read from modbus ${source.id} - ${variableId}: ${result.message}`);
+                    updateRuntimeError(plc, variableId, result.message || "Unknown error");
+                    if (result.message?.includes('Port Not Open')) {
+                      failModbus(source.client, createModbusErrorProperties(result));
+                    }
                   }
                 }
               }
