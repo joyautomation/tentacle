@@ -61,10 +61,11 @@ export async function createRedis<
     return { publisher: publisher.output, subscriber: subscriber.output };
   } else {
     // Retry until successful connection
-    console.log('Failed to connect to Redis, retrying in 5 seconds...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log("Failed to connect to Redis, retrying in 5 seconds...");
+    await new Promise((resolve) => setTimeout(resolve, 5000));
     return createRedis(config);
   }
+  return undefined;
 }
 
 export async function createPlc<
@@ -540,12 +541,17 @@ export async function startPlc<
   }
   const destroySources = await createSources(plc);
   const destroyRestSources = startRestSourceIntervals(plc);
-  const destroyPlcMqtt = createPlcMqtt(plc);
+  let destroyPlcMqtt = createPlcMqtt(plc);
+  const mqttRefreshInterval = setInterval(() => {
+    destroyPlcMqtt();
+    destroyPlcMqtt = createPlcMqtt(plc);
+  }, 5 * 60 * 1000);
   const destroyTasks = createTasks(plc);
   return () => {
     destroyRestSources();
     destroySources();
     destroyPlcMqtt();
     destroyTasks();
+    clearInterval(mqttRefreshInterval);
   };
 }
