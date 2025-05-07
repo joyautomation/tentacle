@@ -1,14 +1,10 @@
 import {
   createTentacle,
   type PlcSource,
-  type PlcVariableBoolean,
   type PlcVariableNumberWithMqttSource,
 } from "../index.ts";
 import type { MqttConnection } from "../types/mqtt.ts";
-import type {
-  PlcVariableBooleanWithRestSource,
-  PlcVariableNumber,
-} from "../types/variables.ts";
+import type { PlcVariableNumber } from "../types/variables.ts";
 import { customAlphabet } from "nanoid";
 import { pipe } from "@joyautomation/dark-matter";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
@@ -22,10 +18,7 @@ type Sources = Record<string, PlcSource>; //FtirSources;
 type Variables = {
   // FtirVariables & {
   count: PlcVariableNumber;
-  another: PlcVariableNumber;
-  yetAnother: PlcVariableBoolean;
   temperature: PlcVariableNumberWithMqttSource<Mqtts>;
-  output: PlcVariableBooleanWithRestSource;
 };
 
 const hexToValue = (hexString: string) =>
@@ -41,7 +34,7 @@ const hexToValue = (hexString: string) =>
     //   view.setUint32(0, hex, true);
     //   return view.getFloat32(0, false);
     // },
-    (value: number) => value / 10,
+    (value: number) => value / 10
   );
 
 function numberToHexString(num?: number | boolean | string): string {
@@ -72,16 +65,6 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
         variables.count.value = variables.count.value + 1;
       },
     },
-    secondary: {
-      name: "secondary",
-      description: "The secondary task",
-      scanRate: 1000,
-      program: async (variables) => {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        variables.yetAnother.value = !variables.yetAnother.value;
-        throw new Error("Something went wrong");
-      },
-    },
   },
   mqtt: {
     local: {
@@ -102,55 +85,12 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
     // ...ftirSources,
   },
   variables: {
-    output: {
-      id: "output",
-      datatype: "boolean",
-      description: "Output",
-      default: false,
-      source: {
-        type: "rest",
-        rate: 1000,
-        url:
-          "http://192.168.82.12/iolinkmaster/port[3]/iolinkdevice/pdout/getdata",
-        method: "GET",
-        headers: {},
-        setFromResponse: true,
-        body: (value:number) => {
-          return JSON.stringify({
-            code: "request",
-            cid: 10,
-            adr: `iolinkmaster/port[3]/iolinkdevice/pdout/getdata`,
-            data: {
-              newvalue: numberToHexString(value ? 1 : 0),
-            },
-          });
-        },
-        onResponse: (response:{ data: {value:string}}) => {
-          const { data: { value } } = response;
-          return value === "01";
-        },
-        timeout: 10000,
-      },
-    },
     count: {
       id: "count",
       datatype: "number",
       description: "A counter",
       decimals: 0,
       default: 0,
-    },
-    another: {
-      id: "another",
-      datatype: "number",
-      description: "Another counter",
-      decimals: 0,
-      default: 2,
-    },
-    yetAnother: {
-      id: "yetAnother",
-      datatype: "boolean",
-      description: "A boolean",
-      default: false,
     },
     temperature: {
       id: "temperature",
@@ -164,14 +104,15 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
         topic: "instruments/pm_20_26",
         onResponse: (value) => {
           const raw = JSON.parse(value.toString());
-          const { data: { payload } } = raw;
+          const {
+            data: { payload },
+          } = raw;
           const { data: temperatureRaw } =
             payload["/iolinkmaster/port[1]/iolinkdevice/pdin"];
           return hexToValue(temperatureRaw);
         },
       },
     },
-    // ...ftirVariables,
   },
 });
 
