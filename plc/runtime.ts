@@ -36,7 +36,7 @@ import {
   createModbusErrorProperties,
   readModbus,
   writeModbus,
-  failModbus
+  failModbus,
 } from "../modbus/client.ts";
 import {
   getPublisher,
@@ -53,20 +53,24 @@ const log = logs.main;
 export async function createRedis<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>) {
   const publisher = await getPublisher(config);
   const subscriber = await getSubscriber(config);
   if (isSuccess(publisher) && isSuccess(subscriber)) {
     return { publisher: publisher.output, subscriber: subscriber.output };
+  } else {
+    // Retry until successful connection
+    console.log('Failed to connect to Redis, retrying in 5 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    return createRedis(config);
   }
-  return undefined;
 }
 
 export async function createPlc<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>) {
   const plc: Plc<M, S, V> = {
     config,
@@ -91,7 +95,7 @@ export async function createPlc<
 export function createVariables<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>): PlcVariablesRuntime<M, S, V> {
   const { variables } = config;
   return Object.fromEntries(
@@ -109,14 +113,14 @@ export function createVariables<
         return [key, { ...variable, value: variable.default, error: null }];
       }
       throw new Error(`Unknown variable type: ${JSON.stringify(variable)}`);
-    }),
+    })
   ) as PlcVariablesRuntime<M, S, V>;
 }
 
 const onFail =
   <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
     variables: PlcVariablesRuntime<M, S, V>,
-    source: PlcModbusSource,
+    source: PlcModbusSource
   ) =>
   (error: ReturnType<typeof createModbusErrorProperties>) => {
     Object.values(variables).forEach((variable) => {
@@ -129,7 +133,7 @@ const onFail =
 const onConnect =
   <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
     variables: PlcVariablesRuntime<M, S, V>,
-    source: PlcModbusSource,
+    source: PlcModbusSource
   ) =>
   () => {
     Object.values(variables).forEach((variable) => {
@@ -142,7 +146,7 @@ const onConnect =
 const onDisconnect =
   <M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
     variables: PlcVariablesRuntime<M, S, V>,
-    source: PlcModbusSource,
+    source: PlcModbusSource
   ) =>
   () => {
     Object.values(variables).forEach((variable) => {
@@ -159,7 +163,7 @@ const onDisconnect =
 export async function createSources<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>) {
   const { sources } = plc.config;
   plc.runtime.sources = Object.fromEntries(
@@ -175,7 +179,7 @@ export async function createSources<
                 onFail(plc.runtime.variables, source),
                 onConnect(plc.runtime.variables, source),
                 onDisconnect(plc.runtime.variables, source),
-                source.enabled ? "connect" : "disconnect",
+                source.enabled ? "connect" : "disconnect"
               ),
             },
           ];
@@ -184,8 +188,8 @@ export async function createSources<
           return [key, { ...source, client: null }];
         }
         throw new Error(`Unknown source type: ${JSON.stringify(source)}`);
-      }),
-    ),
+      })
+    )
   );
   const stopSourceIntervals = startSourceIntervals(plc);
   return () => {
@@ -196,13 +200,13 @@ export async function createSources<
 export function updateRuntimeValue<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>, variableId: string, value: number | boolean) {
   plc.runtime.variables[variableId].value = value;
   if (plc.runtime.redis?.publisher) {
     publishVariable(
       plc.runtime.redis.publisher,
-      plc.runtime.variables[variableId],
+      plc.runtime.variables[variableId]
     );
   }
 }
@@ -210,7 +214,7 @@ export function updateRuntimeValue<
 export function updateRuntimeError<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>, variableId: string, error: string) {
   plc.runtime.variables[variableId].error = {
     error: "Error",
@@ -223,7 +227,7 @@ export function updateRuntimeError<
 export function clearRuntimeError<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>, variableId: string) {
   plc.runtime.variables[variableId].error = null;
 }
@@ -231,27 +235,28 @@ export function clearRuntimeError<
 export const getRestRates = <
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
->(variables: PlcVariablesRuntime<M, S, V>) =>
-  Object.values(variables).filter((variable) => hasRestSource(variable)).reduce(
-    (acc: Record<string, PlcVariablesRuntime<M, S, V>>, variable) => {
+  V extends PlcVariables<M, S>
+>(
+  variables: PlcVariablesRuntime<M, S, V>
+) =>
+  Object.values(variables)
+    .filter((variable) => hasRestSource(variable))
+    .reduce((acc: Record<string, PlcVariablesRuntime<M, S, V>>, variable) => {
       if (!acc[`${variable.source.rate}`]) {
         acc[`${variable.source.rate}`] = Object.fromEntries(
           Object.entries(variables).filter(
             ([_, v]) =>
-              hasRestSource(v) && v.source.rate === variable.source.rate,
-          ),
+              hasRestSource(v) && v.source.rate === variable.source.rate
+          )
         ) as PlcVariablesRuntime<M, S, V>;
       }
       return acc;
-    },
-    {} as Record<string, PlcVariablesRuntime<M, S, V>>,
-  );
+    }, {} as Record<string, PlcVariablesRuntime<M, S, V>>);
 
 export function startRestSourceIntervals<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>) {
   const rates = getRestRates(plc.runtime.variables);
   Object.entries(rates).forEach(([rate, variables]) => {
@@ -263,7 +268,7 @@ export function startRestSourceIntervals<
             variable.source.method,
             variable.source.headers,
             variable.source.body(variable.value),
-            variable.source.timeout,
+            variable.source.timeout
           );
           if (isSuccess(result)) {
             if (variable.source.setFromResponse) {
@@ -289,7 +294,7 @@ export function startRestSourceIntervals<
 export function startSourceIntervals<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>) {
   const { sources } = plc.runtime;
   Object.values(sources).forEach((source) => {
@@ -310,7 +315,7 @@ export function startSourceIntervals<
             ...variable,
             source: variable.source,
           },
-        ]),
+        ])
     ) as PlcVariablesRuntime<M, S, V>;
 
     if (Object.keys(sourceVariables).length > 0) {
@@ -319,32 +324,42 @@ export function startSourceIntervals<
           if (!acc[`${variable.source.rate}`]) {
             acc[`${variable.source.rate}`] = Object.fromEntries(
               Object.entries(sourceVariables).filter(
-                ([_, v]) => variable.source.rate === v.source.rate,
-              ),
+                ([_, v]) => variable.source.rate === v.source.rate
+              )
             ) as PlcVariablesRuntime<M, S, V>;
           }
           return acc;
         },
-        {} as Record<string, PlcVariablesRuntime<M, S, V>>,
+        {} as Record<string, PlcVariablesRuntime<M, S, V>>
       );
       source.intervals = Object.entries(rates).map(([rate, variables]) =>
         setInterval(async () => {
           for (const [variableId, variable] of Object.entries(variables)) {
             if (hasModbusSource(variable)) {
-              log.debug(`Modbus interval scanned, client connected is ${source.client?.states.connected}, and source enabled is ${source.enabled}`);
+              log.debug(
+                `Modbus interval scanned, client connected is ${source.client?.states.connected}, and source enabled is ${source.enabled}`
+              );
               if (source.client?.states.connected && source.enabled) {
-                if (variable.source.bidirectional && (variable.source.registerType === "COIL" || variable.source.registerType === "HOLDING_REGISTER")) {
+                if (
+                  variable.source.bidirectional &&
+                  (variable.source.registerType === "COIL" ||
+                    variable.source.registerType === "HOLDING_REGISTER")
+                ) {
                   const currentVariable = plc.runtime.variables[variableId];
-                  log.debug(`Writing to modbus ${source.id} - ${variableId} = ${currentVariable.value}`);
+                  log.debug(
+                    `Writing to modbus ${source.id} - ${variableId} = ${currentVariable.value}`
+                  );
                   const writeResult = await writeModbus(
                     variable.source.register,
                     variable.source.registerType,
                     source.client,
                     //@ts-ignore fix type
-                    currentVariable.value,
+                    currentVariable.value
                   );
                   if (isFail(writeResult)) {
-                    log.warn(`Failed to write to modbus ${source.id} - ${variableId}: ${writeResult.error}`);
+                    log.warn(
+                      `Failed to write to modbus ${source.id} - ${variableId}: ${writeResult.error}`
+                    );
                     updateRuntimeError(plc, variableId, writeResult.error);
                   }
                   clearRuntimeError(plc, variableId);
@@ -355,7 +370,7 @@ export function startSourceIntervals<
                     variable.source.register,
                     variable.source.registerType,
                     variable.source.format,
-                    source.client,
+                    source.client
                   );
                   if (isSuccess(result)) {
                     const value = variable.source.onResponse
@@ -364,10 +379,19 @@ export function startSourceIntervals<
                     updateRuntimeValue(plc, variableId, value);
                     clearRuntimeError(plc, variableId);
                   } else {
-                    log.warn(`Failed to read from modbus ${source.id} - ${variableId}: ${result.message}`);
-                    updateRuntimeError(plc, variableId, result.message || "Unknown error");
-                    if (result.message?.includes('Port Not Open')) {
-                      failModbus(source.client, createModbusErrorProperties(result));
+                    log.warn(
+                      `Failed to read from modbus ${source.id} - ${variableId}: ${result.message}`
+                    );
+                    updateRuntimeError(
+                      plc,
+                      variableId,
+                      result.message || "Unknown error"
+                    );
+                    if (result.message?.includes("Port Not Open")) {
+                      failModbus(
+                        source.client,
+                        createModbusErrorProperties(result)
+                      );
                     }
                   }
                 }
@@ -384,7 +408,7 @@ export function startSourceIntervals<
 export function stopSourceIntervals<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>) {
   const { sources } = plc.runtime;
   Object.values(sources).forEach((source) => {
@@ -396,7 +420,7 @@ export function stopSourceIntervals<
 export function stopRestSourceIntervals<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>) {
   const { restSourceIntervals } = plc.runtime;
   Object.values(restSourceIntervals).forEach((interval) =>
@@ -408,19 +432,17 @@ export function stopRestSourceIntervals<
 export const executeTask = <
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(
   task: (variables: PlcVariablesRuntime<M, S, V>) => Promise<void> | void,
-  variables: PlcVariablesRuntime<M, S, V>,
+  variables: PlcVariablesRuntime<M, S, V>
 ) => rTryAsync(async () => await task(variables));
 
 export function createTasks<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
->(
-  plc: Plc<M, S, V>,
-) {
+  V extends PlcVariables<M, S>
+>(plc: Plc<M, S, V>) {
   const { tasks } = plc.config;
   plc.runtime.tasks = Object.fromEntries(
     Object.entries(tasks).map(([key, task]) => {
@@ -452,15 +474,16 @@ export function createTasks<
               const measureResult = rTry(() => {
                 clearWaitMeasure(key);
                 measureWait(key);
-                metrics.waitTime = performance
-                  .getEntriesByType("measure")
-                  .find((measure) => measure.name === `${key}-wait`)
-                  ?.duration || 0;
+                metrics.waitTime =
+                  performance
+                    .getEntriesByType("measure")
+                    .find((measure) => measure.name === `${key}-wait`)
+                    ?.duration || 0;
               });
               if (isFail(measureResult)) {
                 if (
                   measureResult.message !==
-                    'Cannot find mark: "main-wait-start".'
+                  'Cannot find mark: "main-wait-start".'
                 ) {
                   // log.error(JSON.stringify(measureResult));
                 }
@@ -468,26 +491,27 @@ export function createTasks<
               markWaitStart(key);
               clearExecuteMeasure(key);
               measureExecute(key);
-              metrics.executeTime = performance
-                .getEntriesByType("measure")
-                .find((measure) => measure.name === `${key}-execute`)
-                ?.duration || 0;
+              metrics.executeTime =
+                performance
+                  .getEntriesByType("measure")
+                  .find((measure) => measure.name === `${key}-execute`)
+                  ?.duration || 0;
               pubsub.publish("plcUpdate", plc);
               if (plc.runtime.redis) {
                 publishVariables(
                   plc.runtime.redis?.publisher,
-                  plc.runtime.variables,
+                  plc.runtime.variables
                 );
               }
             },
             task.scanRate,
-            plc.runtime.variables,
+            plc.runtime.variables
           ),
           metrics,
           error,
         },
       ];
-    }),
+    })
   );
   return () => destroyTasks(plc);
 }
@@ -495,10 +519,8 @@ export function createTasks<
 export function destroyTasks<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
->(
-  plc: Plc<M, S, V>,
-) {
+  V extends PlcVariables<M, S>
+>(plc: Plc<M, S, V>) {
   Object.values(plc.runtime.tasks).forEach((task) =>
     clearInterval(task.interval)
   );
@@ -508,14 +530,12 @@ export function destroyTasks<
 export async function startPlc<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
->(
-  plc: Plc<M, S, V>,
-) {
+  V extends PlcVariables<M, S>
+>(plc: Plc<M, S, V>) {
   if (plc.runtime.redis) {
     setVariableValuesFromRedis(
       plc.runtime.redis?.publisher,
-      plc.runtime.variables,
+      plc.runtime.variables
     );
   }
   const destroySources = await createSources(plc);
