@@ -38,7 +38,7 @@ export function validateRedisUrl(url: string | undefined): Result<string> {
 function createRedisConnectionString<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>) {
   const redisUrlResult = validateRedisUrl(config.redisUrl);
   if (isSuccess(redisUrlResult)) {
@@ -52,7 +52,7 @@ function createRedisConnectionString<
 export async function getPublisher<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>) {
   const url = createRedisConnectionString(config);
   try {
@@ -65,7 +65,7 @@ export async function getPublisher<
   } catch (e) {
     publisher = undefined;
     return createFail(
-      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`,
+      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`
     );
   }
 }
@@ -73,7 +73,7 @@ export async function getPublisher<
 export async function getPublisherRetry<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>, maxRetries: number, delay: number) {
   let retries = 0;
   while (retries < maxRetries) {
@@ -90,7 +90,7 @@ export async function getPublisherRetry<
 export async function getSubscriber<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>) {
   const url = createRedisConnectionString(config);
   try {
@@ -104,7 +104,7 @@ export async function getSubscriber<
   } catch (e) {
     subscriber = undefined;
     return createFail(
-      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`,
+      `Failed to connect to Redis at ${url}: ${createErrorString(e)}`
     );
   }
 }
@@ -112,7 +112,7 @@ export async function getSubscriber<
 export async function getSubscriberRetry<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(config: PlcConfig<M, S, V>, maxRetries: number, delay: number) {
   let retries = 0;
   while (retries < maxRetries) {
@@ -128,7 +128,7 @@ export async function getSubscriberRetry<
 
 export function subscribeToKeys(
   subscriber: ReturnType<typeof createClient>,
-  onMessage: (key: string, topic: string) => void,
+  onMessage: (key: string, topic: string) => void
 ) {
   const keyPattern = "__keyevent@0__:*"; // Subscribe to all key events
   subscriber.pSubscribe(keyPattern, onMessage);
@@ -138,7 +138,7 @@ export async function publish(
   publisher: ReturnType<typeof createClient>,
   key: string,
   value: string,
-  ttl?: number,
+  ttl?: number
 ) {
   await publisher.set(key, value);
   if (ttl) {
@@ -146,30 +146,40 @@ export async function publish(
   }
 }
 
-export async function publishVariable<M extends PlcMqtts, S extends PlcSources, V extends PlcVariables<M, S>>(
+export async function publishVariable<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>
+>(
   publisher: ReturnType<typeof createClient>,
-  variable: PlcVariableRuntime<M, S>,
+  variable: PlcVariableRuntime<M, S>
 ) {
   const valueString = JSON.stringify(variable.value);
   await publish(publisher, `plc.variables.${variable.id}`, valueString);
 }
 
-export async function publishVariables<
+let lastPublished = performance.now();
+const rateLimit = Deno.env.get("TENTACLE_REDIS_RATE_LIMIT") || 1000;
+
+export function publishVariables<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(
   publisher: ReturnType<typeof createClient>,
-  variables: PlcVariablesRuntime<M, S, V>,
+  variables: PlcVariablesRuntime<M, S, V>
 ) {
+  const now = performance.now();
+  if (now - lastPublished < Number(rateLimit)) return;
+  lastPublished = now;
   const keyValuePairs = Object.values(variables).flatMap(
     (variable: PlcVariableRuntime<M, S>) => [
       `plc.variables.${variable.id}`,
       JSON.stringify(variable.value),
-    ],
+    ]
   );
   if (keyValuePairs.length > 0) {
-    await publisher.mSet(keyValuePairs);
+    publisher.mSet(keyValuePairs);
   }
 }
 
@@ -178,20 +188,17 @@ export async function getAllValues(redis: ReturnType<typeof createClient>) {
   if (keys.length === 0) return {};
   const values = await redis.mGet(keys);
   return Object.fromEntries(
-    keys.map((
-      key,
-      index,
-    ) => [key.replace("plc.variables.", ""), values[index]]),
+    keys.map((key, index) => [key.replace("plc.variables.", ""), values[index]])
   );
 }
 
 export async function setVariableValuesFromRedis<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 >(
   redis: ReturnType<typeof createClient>,
-  variables: PlcVariablesRuntime<M, S, V>,
+  variables: PlcVariablesRuntime<M, S, V>
 ) {
   const values = await getAllValues(redis);
   Object.entries(variables).forEach(([key, variable]) => {
@@ -204,22 +211,24 @@ export async function setVariableValuesFromRedis<
   });
 }
 
-export async function getSourceEnablesFromRedis(redis: ReturnType<typeof createClient>) {
+export async function getSourceEnablesFromRedis(
+  redis: ReturnType<typeof createClient>
+) {
   const keys = await redis.keys("plc.sources.*");
   if (keys.length === 0) return {};
   const values = await redis.mGet(keys);
   return Object.fromEntries(
-    keys.map((key, index) => [key.replace("plc.sources.", ""), values[index]]),
+    keys.map((key, index) => [key.replace("plc.sources.", ""), values[index]])
   );
 }
 
 export async function setSourceEnable(
   publisher: ReturnType<typeof createClient>,
   source: PlcSourceRuntime,
-  enable: boolean,
+  enable: boolean
 ) {
   await publisher.set(
     `plc.sources.${source.id}.enable`,
-    enable ? "true" : "false",
+    enable ? "true" : "false"
   );
 }
