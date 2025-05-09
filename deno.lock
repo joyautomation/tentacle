@@ -9,7 +9,7 @@
     "jsr:@joyautomation/coral@^0.0.10": "0.0.10",
     "jsr:@joyautomation/coral@^0.0.12": "0.0.12",
     "jsr:@joyautomation/dark-matter@^0.0.26": "0.0.26",
-    "jsr:@joyautomation/synapse@^0.0.77": "0.0.77",
+    "jsr:@joyautomation/synapse@^0.0.78": "0.0.78",
     "jsr:@std/assert@0.223": "0.223.0",
     "jsr:@std/assert@0.226": "0.226.0",
     "jsr:@std/assert@1": "1.0.11",
@@ -112,8 +112,8 @@
     "@joyautomation/dark-matter@0.0.26": {
       "integrity": "7276ddefea2448937b72ada91b3adb86efe4f01032c1dd7915900b59201cba2e"
     },
-    "@joyautomation/synapse@0.0.77": {
-      "integrity": "9fe6ceff6c47021ed1bf0c950fe5915e9c6d5ec60890a0ccda469027395c8374",
+    "@joyautomation/synapse@0.0.78": {
+      "integrity": "a4776867e1286ab9065e36976140275610d23d65648d91b2cf20d5ecc2a0d232",
       "dependencies": [
         "jsr:@joyautomation/coral@^0.0.12",
         "jsr:@joyautomation/dark-matter",
@@ -988,7 +988,7 @@
       "jsr:@joyautomation/conch@^0.0.22",
       "jsr:@joyautomation/coral@^0.0.12",
       "jsr:@joyautomation/dark-matter@^0.0.26",
-      "jsr:@joyautomation/synapse@^0.0.77",
+      "jsr:@joyautomation/synapse@^0.0.78",
       "jsr:@std/assert@1",
       "jsr:@std/cli@^1.0.6",
       "jsr:@std/expect@^1.0.13",
