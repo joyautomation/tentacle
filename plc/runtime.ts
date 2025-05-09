@@ -456,58 +456,112 @@ export function createTasks<
         message: null,
         stack: null,
       };
+      
+      // Create a more reliable interval mechanism using setTimeout
+      let timeoutId: number | null = null;
+      let isRunning = false;
+      let lastRunTime = 0;
+      
+      // Function to schedule the next execution
+      const scheduleNext = () => {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+        
+        const now = performance.now();
+        // Calculate time since last run
+        const timeSinceLastRun = now - lastRunTime;
+        // Calculate next interval - adjust if we're behind schedule
+        let nextInterval = task.scanRate;
+        
+        // If we're running behind, adjust the next interval to catch up
+        // but never go below 1ms to prevent CPU hogging
+        if (lastRunTime > 0 && timeSinceLastRun > task.scanRate) {
+          // Calculate how far behind schedule we are
+          const behind = timeSinceLastRun - task.scanRate;
+          // Adjust next interval, but ensure it's at least 1ms
+          nextInterval = Math.max(1, task.scanRate - behind);
+        }
+        
+        timeoutId = setTimeout(runTask, nextInterval);
+      };
+      
+      // Function to execute the task
+      const runTask = async () => {
+        // Prevent concurrent executions
+        if (isRunning) {
+          scheduleNext();
+          return;
+        }
+        
+        isRunning = true;
+        lastRunTime = performance.now();
+        
+        try {
+          markWaitEnd(key);
+          markExecuteStart(key);
+          const result = await executeTask(task.program, plc.runtime.variables);
+          if (isFail(result)) {
+            error.error = result.error;
+            error.message = result.message;
+            error.stack = result.stack;
+          }
+          updateMetricValues(plc);
+          markExecuteEnd(key);
+          const measureResult = rTry(() => {
+            clearWaitMeasure(key);
+            measureWait(key);
+            metrics.waitTime =
+              performance
+                .getEntriesByType("measure")
+                .find((measure) => measure.name === `${key}-wait`)
+                ?.duration || 0;
+          });
+          if (isFail(measureResult)) {
+            if (
+              measureResult.message !==
+              'Cannot find mark: "main-wait-start".'
+            ) {
+              // log.error(JSON.stringify(measureResult));
+            }
+          }
+          markWaitStart(key);
+          clearExecuteMeasure(key);
+          measureExecute(key);
+          metrics.executeTime =
+            performance
+              .getEntriesByType("measure")
+              .find((measure) => measure.name === `${key}-execute`)
+              ?.duration || 0;
+          rateLimitedPublish("plcUpdate", plc);
+          if (plc.runtime.redis) {
+            publishVariables(
+              plc.runtime.redis?.publisher,
+              plc.runtime.variables
+            );
+          }
+        } finally {
+          isRunning = false;
+          scheduleNext();
+        }
+      };
+      
+      // Start the first execution
+      scheduleNext();
+      
       return [
         key,
         {
           ...task,
-          interval: setInterval(
-            async (variables: PlcVariablesRuntime<M, S, V>) => {
-              markWaitEnd(key);
-              markExecuteStart(key);
-              const result = await executeTask(task.program, variables);
-              if (isFail(result)) {
-                error.error = result.error;
-                error.message = result.message;
-                error.stack = result.stack;
+          interval: {
+            id: timeoutId || 0,
+            cancel: () => {
+              if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
               }
-              updateMetricValues(plc);
-              markExecuteEnd(key);
-              const measureResult = rTry(() => {
-                clearWaitMeasure(key);
-                measureWait(key);
-                metrics.waitTime =
-                  performance
-                    .getEntriesByType("measure")
-                    .find((measure) => measure.name === `${key}-wait`)
-                    ?.duration || 0;
-              });
-              if (isFail(measureResult)) {
-                if (
-                  measureResult.message !==
-                  'Cannot find mark: "main-wait-start".'
-                ) {
-                  // log.error(JSON.stringify(measureResult));
-                }
-              }
-              markWaitStart(key);
-              clearExecuteMeasure(key);
-              measureExecute(key);
-              metrics.executeTime =
-                performance
-                  .getEntriesByType("measure")
-                  .find((measure) => measure.name === `${key}-execute`)
-                  ?.duration || 0;
-              rateLimitedPublish("plcUpdate", plc);
-              if (plc.runtime.redis) {
-                publishVariables(
-                  plc.runtime.redis?.publisher,
-                  plc.runtime.variables
-                );
-              }
-            },
-            task.scanRate,
-            plc.runtime.variables
-          ),
+            }
+          },
           metrics,
           error,
         },
@@ -522,9 +576,13 @@ export function destroyTasks<
   S extends PlcSources,
   V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>) {
-  Object.values(plc.runtime.tasks).forEach((task) =>
-    clearInterval(task.interval)
-  );
+  Object.values(plc.runtime.tasks).forEach((task) => {
+    if (typeof task.interval === 'number') {
+      clearInterval(task.interval);
+    } else if (task.interval && typeof task.interval === 'object' && 'cancel' in task.interval) {
+      task.interval.cancel();
+    }
+  });
   return plc;
 }
 

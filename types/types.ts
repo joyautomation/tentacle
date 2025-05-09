@@ -18,7 +18,7 @@ import type { PlcMqtts } from "./mqtt.ts";
 export type PlcTask<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 > = {
   name: string;
   description: string;
@@ -35,11 +35,8 @@ export type PlcTask<
 export type PlcTasks<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
-> = Record<
-  string,
-  PlcTaskRuntime<M, S, V>
->;
+  V extends PlcVariables<M, S>
+> = Record<string, PlcTaskRuntime<M, S, V>>;
 
 /**
  * Runtime task configuration for a PLC instance.
@@ -54,9 +51,12 @@ export type PlcTasks<
 export type PlcTaskRuntime<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 > = PlcTask<M, S, V> & {
-  interval: number;
+  interval: number | {
+    id: number;
+    cancel: () => void;
+  };
   metrics: { waitTime: number; executeTime: number };
   error: {
     error: string | null;
@@ -74,7 +74,7 @@ export type PlcTaskRuntime<
 export type PlcTasksRuntime<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 > = Record<string, PlcTaskRuntime<M, S, V>>;
 
 /**
@@ -93,7 +93,7 @@ export type PlcTasksRuntime<
 export type PlcConfig<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 > = {
   redisUrl?: string;
   tasks: Record<string, PlcTask<M, S, V>>;
@@ -122,7 +122,7 @@ export type PlcConfig<
 export type Plc<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
+  V extends PlcVariables<M, S>
 > = {
   config: PlcConfig<M, S, V>;
   runtime: {

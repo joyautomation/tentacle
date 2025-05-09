@@ -66,9 +66,9 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
     main: {
       name: "main",
       description: "The main task",
-      scanRate: 1000,
-      program: async (variables) => {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      scanRate: 100,
+      program: (variables) => {
+        // await new Promise((resolve) => setTimeout(resolve, 100));
         variables.count.value = variables.count.value + 1;
       },
     },

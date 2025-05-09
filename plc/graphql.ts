@@ -406,7 +406,16 @@ export function addPlcToSchema<
       program: t.string({
         resolve: (parent) => parent.program.toString(),
       }),
-      interval: t.exposeInt("interval"),
+      interval: t.int({
+        resolve: (parent) => {
+          if (typeof parent.interval === 'number') {
+            return parent.interval;
+          } else if (parent.interval && typeof parent.interval === 'object' && 'id' in parent.interval) {
+            return parent.interval.id;
+          }
+          return 0; // Fallback value
+        },
+      }),
       metrics: t.field({
         type: PlcRuntimeTaskMetricsRef,
         resolve: (parent) => parent.metrics,
