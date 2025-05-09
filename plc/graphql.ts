@@ -377,8 +377,12 @@ export function addPlcToSchema<
   });
   PlcRuntimeTaskMetricsRef.implement({
     fields: (t) => ({
-      waitTime: t.exposeFloat("waitTime"),
-      executeTime: t.exposeFloat("executeTime"),
+      waitTime: t.float({
+        resolve: (parent) => parent.wait.measurement,
+      }),
+      executeTime: t.float({
+        resolve: (parent) => parent.execute.measurement,
+      })
     }),
   });
   PlcRuntimeTaskErrorRef.implement({
