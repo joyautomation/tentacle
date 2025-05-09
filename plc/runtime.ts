@@ -12,7 +12,7 @@ import {
 } from "./performance.ts";
 import { isFail } from "@joyautomation/dark-matter";
 import { createPlcMqtt, updateMetricValues } from "../synapse.ts";
-import { pubsub } from "../pubsub.ts";
+import { rateLimitedPublish } from "../pubsub.ts";
 import {
   isSourceModbus,
   isSourceOpcua,
@@ -497,7 +497,7 @@ export function createTasks<
                   .getEntriesByType("measure")
                   .find((measure) => measure.name === `${key}-execute`)
                   ?.duration || 0;
-              pubsub.publish("plcUpdate", plc);
+              rateLimitedPublish("plcUpdate", plc);
               if (plc.runtime.redis) {
                 publishVariables(
                   plc.runtime.redis?.publisher,
