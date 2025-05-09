@@ -1,15 +1,5 @@
 import { isSuccess, rTry, rTryAsync } from "@joyautomation/dark-matter";
 import type { Plc, PlcConfig, PlcTaskRuntime } from "../types/types.ts";
-import {
-  clearExecuteMeasure,
-  clearWaitMeasure,
-  markExecuteEnd,
-  markExecuteStart,
-  markWaitEnd,
-  markWaitStart,
-  measureExecute,
-  measureWait,
-} from "./performance.ts";
 import { isFail } from "@joyautomation/dark-matter";
 import { createPlcMqtt, updateMetricValues } from "../synapse.ts";
 import { rateLimitedPublish } from "../pubsub.ts";
@@ -448,8 +438,16 @@ export function createTasks<
   plc.runtime.tasks = Object.fromEntries(
     Object.entries(tasks).map(([key, task]) => {
       const metrics: PlcTaskRuntime<M, S, V>["metrics"] = {
-        waitTime: 0,
-        executeTime: 0,
+        wait: {
+          start: 0,
+          end: 0,
+          measurement: 0
+        },
+        execute: {
+          start: 0,
+          end: 0,
+          measurement: 0
+        }
       };
       const error: PlcTaskRuntime<M, S, V>["error"] = {
         error: null,
@@ -462,8 +460,8 @@ export function createTasks<
           ...task,
           interval: setInterval(
             async (variables: PlcVariablesRuntime<M, S, V>) => {
-              markWaitEnd(key);
-              markExecuteStart(key);
+              metrics.wait.end = performance.now();
+              metrics.execute.start = performance.now();
               const result = await executeTask(task.program, variables);
               if (isFail(result)) {
                 error.error = result.error;
@@ -471,32 +469,10 @@ export function createTasks<
                 error.stack = result.stack;
               }
               updateMetricValues(plc);
-              markExecuteEnd(key);
-              const measureResult = rTry(() => {
-                clearWaitMeasure(key);
-                measureWait(key);
-                metrics.waitTime =
-                  performance
-                    .getEntriesByType("measure")
-                    .find((measure) => measure.name === `${key}-wait`)
-                    ?.duration || 0;
-              });
-              if (isFail(measureResult)) {
-                if (
-                  measureResult.message !==
-                  'Cannot find mark: "main-wait-start".'
-                ) {
-                  // log.error(JSON.stringify(measureResult));
-                }
-              }
-              markWaitStart(key);
-              clearExecuteMeasure(key);
-              measureExecute(key);
-              metrics.executeTime =
-                performance
-                  .getEntriesByType("measure")
-                  .find((measure) => measure.name === `${key}-execute`)
-                  ?.duration || 0;
+              metrics.execute.end = performance.now();
+              metrics.execute.measurement = metrics.execute.end - metrics.execute.start;
+              metrics.wait.measurement = metrics.wait.end - metrics.wait.start;
+              metrics.wait.start = performance.now();
               rateLimitedPublish("plcUpdate", plc);
               if (plc.runtime.redis) {
                 publishVariables(
