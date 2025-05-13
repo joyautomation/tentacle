@@ -9,7 +9,8 @@
     "jsr:@joyautomation/coral@^0.0.10": "0.0.10",
     "jsr:@joyautomation/coral@^0.0.12": "0.0.12",
     "jsr:@joyautomation/dark-matter@^0.0.26": "0.0.26",
-    "jsr:@joyautomation/synapse@^0.0.78": "0.0.78",
+    "jsr:@joyautomation/synapse@^0.0.79": "0.0.79",
+    "jsr:@m3o/version@~0.1.11": "0.1.11",
     "jsr:@std/assert@0.223": "0.223.0",
     "jsr:@std/assert@0.226": "0.226.0",
     "jsr:@std/assert@1": "1.0.11",
@@ -36,6 +37,7 @@
     "jsr:@std/path@0.223": "0.223.0",
     "jsr:@std/path@1": "1.0.8",
     "jsr:@std/path@1.0.0-rc.1": "1.0.0-rc.1",
+    "jsr:@std/path@^1.0.3": "1.0.8",
     "jsr:@std/path@^1.0.6": "1.0.8",
     "jsr:@std/path@^1.0.8": "1.0.8",
     "jsr:@std/path@~0.225.2": "0.225.2",
@@ -45,6 +47,7 @@
     "npm:@pothos/core@^4.2.0": "4.3.0_graphql@16.9.0",
     "npm:@types/node@*": "18.16.19",
     "npm:@types/node@^22.14.1": "22.14.1",
+    "npm:date-fns@^3.6.0": "3.6.0",
     "npm:graphql-scalars@^1.23.0": "1.24.1_graphql@16.9.0",
     "npm:graphql-yoga@^5.7.0": "5.7.0_graphql@16.9.0",
     "npm:graphql@^16.10.0": "16.10.0",
@@ -57,7 +60,8 @@
     "npm:ramda@~0.30.1": "0.30.1",
     "npm:redis@^4.7.0": "4.7.0_@redis+client@1.6.0",
     "npm:sparkplug-payload@1.0.3": "1.0.3",
-    "npm:sparkplug-payload@^1.0.3": "1.0.3"
+    "npm:sparkplug-payload@^1.0.3": "1.0.3",
+    "npm:types@~0.1.1": "0.1.1"
   },
   "jsr": {
     "@david/code-block-writer@13.0.3": {
@@ -112,8 +116,8 @@
     "@joyautomation/dark-matter@0.0.26": {
       "integrity": "7276ddefea2448937b72ada91b3adb86efe4f01032c1dd7915900b59201cba2e"
     },
-    "@joyautomation/synapse@0.0.78": {
-      "integrity": "a4776867e1286ab9065e36976140275610d23d65648d91b2cf20d5ecc2a0d232",
+    "@joyautomation/synapse@0.0.79": {
+      "integrity": "c18d354b9ddc8b9a07e14e9600be412ecf85abf96d60f9397448baff5333cc06",
       "dependencies": [
         "jsr:@joyautomation/coral@^0.0.12",
         "jsr:@joyautomation/dark-matter",
@@ -121,6 +125,12 @@
         "npm:mqtt",
         "npm:pako",
         "npm:sparkplug-payload@1.0.3"
+      ]
+    },
+    "@m3o/version@0.1.11": {
+      "integrity": "d8e512bc6218f23c75618ead1c83ad0a7ffebb6e80f728f87a089077151a4b03",
+      "dependencies": [
+        "jsr:@std/path@^1.0.3"
       ]
     },
     "@std/assert@0.223.0": {
@@ -541,6 +551,9 @@
         "tslib"
       ]
     },
+    "date-fns@3.6.0": {
+      "integrity": "sha512-fRHTG8g/Gif+kSh50gaGEdToemgfj74aRX3swtiouboip5JDLAyDE9F11nHMIcvOaXeOC6D7SpNhi7uFyB7Uww=="
+    },
     "debug@4.4.0": {
       "integrity": "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA==",
       "dependencies": [
@@ -804,6 +817,9 @@
     "typedarray@0.0.6": {
       "integrity": "sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA=="
     },
+    "types@0.1.1": {
+      "integrity": "sha512-JuntZtJj4MKLE9x/XBs7IjsznYhzETwr34pw3XJTKvgYtAMdeMG+o8x8U85E5Lm6eCPa1DdOdGVsHMwq4ZnZAg=="
+    },
     "undici-types@6.19.8": {
       "integrity": "sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw=="
     },
@@ -988,7 +1004,8 @@
       "jsr:@joyautomation/conch@^0.0.22",
       "jsr:@joyautomation/coral@^0.0.12",
       "jsr:@joyautomation/dark-matter@^0.0.26",
-      "jsr:@joyautomation/synapse@^0.0.78",
+      "jsr:@joyautomation/synapse@^0.0.79",
+      "jsr:@m3o/version@~0.1.11",
       "jsr:@std/assert@1",
       "jsr:@std/cli@^1.0.6",
       "jsr:@std/expect@^1.0.13",
@@ -996,14 +1013,19 @@
       "jsr:@std/path@^1.0.6",
       "jsr:@std/testing@^1.0.9",
       "npm:@types/node@^22.14.1",
+      "npm:date-fns@^3.6.0",
       "npm:graphql-yoga@^5.7.0",
       "npm:graphql@^16.10.0",
+      "npm:long@^5.2.3",
       "npm:modbus-serial@8.0.5-no-serial-port",
+      "npm:mqtt@^5.10.1",
       "npm:nanoid@^5.1.5",
+      "npm:pako@^2.1.0",
       "npm:pothos@^0.0.1",
       "npm:ramda@~0.30.1",
       "npm:redis@^4.7.0",
-      "npm:sparkplug-payload@1.0.3"
+      "npm:sparkplug-payload@1.0.3",
+      "npm:types@~0.1.1"
     ]
   }
 }

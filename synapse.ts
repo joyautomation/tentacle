@@ -151,6 +151,11 @@ export function createPlcMqtt<
           },
         },
       });
+      resultMqtt[mqttKey]?.events?.on("dcmd", (_topic, message) => {
+        for (const metric of message.metrics) {
+          updateRuntimeValue(plc, metric.name, metric.value);
+        }
+      });
       const sourceVariables = Object.fromEntries(
         Object.entries(plc.runtime.variables)
           .filter(([_, variable]) => {
