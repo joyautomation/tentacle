@@ -1,3 +1,11 @@
+import type { 
+  PlcVariableBooleanWithFr202DiscreteInputSource, 
+  PlcVariableBooleanWithFr202DiscreteOutputSource, 
+  PlcVariableNumberWithFr202AnalogInputSource,
+  PlcVariableBooleanRuntimeWithFr202DiscreteInputSource, 
+  PlcVariableBooleanRuntimeWithFr202DiscreteOutputSource, 
+  PlcVariableNumberRuntimeWithFr202AnalogInputSource 
+} from "../hardware/onlogic/fr202/types.ts";
 import { isSourceMqtt } from "./mqtt.ts";
 import type {
   PlcMqtts,
@@ -40,7 +48,10 @@ export type PlcVariable<M extends PlcMqtts, S extends PlcSources> =
   | PlcVariableNumberWithRestSource
   | PlcVariableBooleanWithRestSource
   | PlcVariableStringWithRestSource
-  | PlcVariableUdtWithRestSource<unknown>;
+  | PlcVariableUdtWithRestSource<unknown>
+  | PlcVariableBooleanWithFr202DiscreteInputSource
+  | PlcVariableBooleanWithFr202DiscreteOutputSource
+  | PlcVariableNumberWithFr202AnalogInputSource;
 
 /**
  * Represents a runtime instance of a PLC variable with current value.
@@ -68,7 +79,10 @@ export type PlcVariableRuntime<M extends PlcMqtts, S extends PlcSources> =
   | PlcVariableNumberRuntimeWithRestSource
   | PlcVariableBooleanRuntimeWithRestSource
   | PlcVariableStringRuntimeWithRestSource
-  | PlcVariableUdtRuntimeWithRestSource<unknown>;
+  | PlcVariableUdtRuntimeWithRestSource<unknown>
+  | PlcVariableBooleanRuntimeWithFr202DiscreteInputSource
+  | PlcVariableBooleanRuntimeWithFr202DiscreteOutputSource
+  | PlcVariableNumberRuntimeWithFr202AnalogInputSource; 
 
 /**
  * Type guard to check if a PLC variable has an associated source configuration (Modbus or OPC UA).
@@ -570,6 +584,12 @@ export type PlcVariablesRuntime<
       ? PlcVariableStringRuntimeWithRestSource
     : V[K] extends PlcVariableUdtWithRestSource<infer U>
       ? PlcVariableUdtRuntimeWithRestSource<U>
+    : V[K] extends PlcVariableBooleanWithFr202DiscreteInputSource
+      ? PlcVariableBooleanRuntimeWithFr202DiscreteInputSource
+    : V[K] extends PlcVariableBooleanWithFr202DiscreteOutputSource
+      ? PlcVariableBooleanRuntimeWithFr202DiscreteOutputSource
+    : V[K] extends PlcVariableNumberWithFr202AnalogInputSource
+      ? PlcVariableNumberRuntimeWithFr202AnalogInputSource
     : never;
 };
 

@@ -1,4 +1,4 @@
-import { isSuccess, rTry, rTryAsync } from "@joyautomation/dark-matter";
+import { isSuccess, rTryAsync } from "@joyautomation/dark-matter";
 import type { Plc, PlcConfig, PlcTaskRuntime } from "../types/types.ts";
 import { isFail } from "@joyautomation/dark-matter";
 import { createPlcMqtt, updateMetricValues } from "../synapse.ts";
@@ -38,6 +38,7 @@ import {
 import type { PlcMqtts } from "../types/mqtt.ts";
 import { sendRestRequest } from "../rest.ts";
 import { logs } from "../log.ts";
+import { startFr202Intervals } from "../hardware/onlogic/fr202/intervals.ts";
 const log = logs.main;
 
 export async function createRedis<
@@ -55,7 +56,6 @@ export async function createRedis<
     await new Promise((resolve) => setTimeout(resolve, 5000));
     return createRedis(config);
   }
-  return undefined;
 }
 
 export async function createPlc<
@@ -72,6 +72,7 @@ export async function createPlc<
       mqtt: {},
       sources: {} as PlcSourcesRuntime<S>,
       restSourceIntervals: {} as Record<string, ReturnType<typeof setInterval>>,
+      fr202Intervals: {} as Record<string, ReturnType<typeof setInterval>>,
     },
   };
   const stopPlc = await startPlc(plc);
@@ -250,7 +251,7 @@ export function startRestSourceIntervals<
   V extends PlcVariables<M, S>
 >(plc: Plc<M, S, V>) {
   const rates = getRestRates(plc.runtime.variables);
-  Object.entries(rates).forEach(([rate, variables]) => {
+  const intervals = Object.fromEntries(Object.entries(rates).map(([rate, variables]) => {
     const interval = setInterval(async () => {
       for (const [variableId, variable] of Object.entries(variables)) {
         if (hasRestSource(variable)) {
@@ -275,8 +276,9 @@ export function startRestSourceIntervals<
         }
       }
     }, Number(rate));
-    return interval;
-  });
+    return [String(rate), interval];
+  }));
+  plc.runtime.restSourceIntervals = intervals
   return () => {
     stopRestSourceIntervals(plc);
   };
@@ -517,6 +519,7 @@ export async function startPlc<
   }
   const destroySources = await createSources(plc);
   const destroyRestSources = startRestSourceIntervals(plc);
+  const destroyFr202Intervals = startFr202Intervals(plc);
   let destroyPlcMqtt = createPlcMqtt(plc);
   const mqttRefreshInterval = setInterval(() => {
     destroyPlcMqtt();
@@ -526,6 +529,7 @@ export async function startPlc<
   return () => {
     destroyRestSources();
     destroySources();
+    destroyFr202Intervals();
     destroyPlcMqtt();
     destroyTasks();
     clearInterval(mqttRefreshInterval);

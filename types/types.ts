@@ -143,6 +143,7 @@ export type Plc<
     mqtt: Record<string, SparkplugNode>;
     sources: PlcSourcesRuntime<S>;
     restSourceIntervals: Record<string, ReturnType<typeof setInterval>>;
+    fr202Intervals: Record<string, ReturnType<typeof setInterval>>;
   };
 };
 

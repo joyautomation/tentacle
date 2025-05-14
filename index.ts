@@ -16,6 +16,7 @@ export * from "./types/variables.ts";
 export * from "./types/mqtt.ts";
 export * from "./types/rest.ts";
 export * from "./modbus/types.ts";
+export * from "./hardware/onlogic/fr202/types.ts"
 
 /**
  * Creates a new Tentacle PLC instance with GraphQL API.

@@ -1,15 +1,14 @@
 import {
   createTentacle,
-  type PlcSource,
+  type PlcSources,
   type PlcVariableNumberWithMqttSource,
-  type PlcVariableNumberWithModbusSource,
-  PlcModbusSource,
+  type PlcVariableNumberWithFr202AnalogInputSource,
+  type PlcVariableBooleanWithFr202DiscreteInputSource,
 } from "../index.ts";
 import type { MqttConnection } from "../types/mqtt.ts";
 import type { PlcVariableNumber } from "../types/variables.ts";
 import { customAlphabet } from "nanoid";
 import { pipe } from "@joyautomation/dark-matter";
-import { ftirSources, FtirSources } from "./sources/ftir.ts";
 import { getModbusConfigBase } from "./sources/modbus.ts";
 const nanoid = customAlphabet("1234567890abcdefghijklmnopqrstuvwxyz", 10);
 
@@ -17,15 +16,17 @@ type Mqtts = {
   local: MqttConnection;
 };
 
-type Sources = {
-  modbus: PlcModbusSource;
-};
+type Sources = PlcSources //{
+//   modbus: PlcModbusSource;
+// };
 
 type Variables = {
   // FtirVariables & {
   count: PlcVariableNumber;
   temperature: PlcVariableNumberWithMqttSource<Mqtts>;
-  modbusValue: PlcVariableNumberWithModbusSource<Sources>;
+  // modbusValue: PlcVariableNumberWithModbusSource<Sources>;
+  ai0: PlcVariableNumberWithFr202AnalogInputSource;
+  switch0: PlcVariableBooleanWithFr202DiscreteInputSource;
 };
 
 const hexToValue = (hexString: string) =>
@@ -89,33 +90,33 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
     },
   },
   sources: {
-    modbus: getModbusConfigBase({
-      id: `modbus`,
-      host: `10.154.92.36`,
-      description: `Modbus Source`,
-      reverseBits: false,
-    }),
+    // modbus: getModbusConfigBase({
+    //   id: `modbus`,
+    //   host: `10.154.92.36`,
+    //   description: `Modbus Source`,
+    //   reverseBits: false,
+    // }),
   },
   variables: {
-    modbusValue: {
-      id: "modbusValue",
-      datatype: "number" as const,
-      decimals: 2,
-      description: "Modbus Value",
-      default: 0,
-      deadband: {
-        maxTime: 60000,
-        value: 0.001,
-      },
-      source: {
-        id: "modbus",
-        type: "modbus" as const,
-        rate: 1000,
-        register: 2,
-        registerType: "INPUT_REGISTER" as const,
-        format: "INT16" as const,
-      },
-    },
+    // modbusValue: {
+    //   id: "modbusValue",
+    //   datatype: "number" as const,
+    //   decimals: 2,
+    //   description: "Modbus Value",
+    //   default: 0,
+    //   deadband: {
+    //     maxTime: 60000,
+    //     value: 0.001,
+    //   },
+    //   source: {
+    //     id: "modbus",
+    //     type: "modbus" as const,
+    //     rate: 1000,
+    //     register: 2,
+    //     registerType: "INPUT_REGISTER" as const,
+    //     format: "INT16" as const,
+    //   },
+    // },
     count: {
       id: "count",
       datatype: "number",
@@ -142,6 +143,30 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
             payload["/iolinkmaster/port[1]/iolinkdevice/pdin"];
           return hexToValue(temperatureRaw);
         },
+      },
+    },
+    ai0: {
+      id: "ai0",
+      datatype: "number",
+      description: "FR202 Value",
+      default: 0,
+      decimals: 2,
+      source: {
+        type: "fr202ai" as const,
+        rate: 1000,
+        pin: 0,
+      },
+    },
+    switch0: {
+      id: "switch0",
+      datatype: "boolean",
+      description: "FR202 Value",
+      default: false,
+      source: {
+        type: "fr202di" as const,
+        rate: 1000,
+        group: 0,
+        pin: 0,
       },
     },
   },
