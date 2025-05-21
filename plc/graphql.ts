@@ -16,6 +16,7 @@ import type {
 import {
   isSourceModbus,
   isSourceOpcua,
+  isSourceRedis,
   isVariableModbusSourceRuntime,
   isVariableOpcuaSourceRuntime,
   type PlcSource,
@@ -42,58 +43,51 @@ import {
 import { GraphQLError } from "graphql";
 import { getModbusStateString } from "../modbus/client.ts";
 import type { MqttConnection, PlcMqtts } from "../types/mqtt.ts";
+import { getRedisStateString } from "../redis/client.ts";
+import { updateRuntimeValue } from "./runtime.ts";
 
 export function addPlcToSchema<
   M extends PlcMqtts,
   S extends PlcSources,
-  V extends PlcVariables<M, S>,
->(
-  builder: ReturnType<typeof getBuilder<{ plc: Plc<M, S, V> }>>,
-) {
+  V extends PlcVariables<M, S>
+>(builder: ReturnType<typeof getBuilder<{ plc: Plc<M, S, V> }>>) {
   const PlcRef = builder.objectRef<Plc<M, S, V>>("Plc");
   const PlcConfigRef = builder.objectRef<PlcConfig<M, S, V>>("PlcConfig");
   const PlcConfigTaskRef = builder.objectRef<PlcTask<M, S, V>>("PlcTask");
-  const PlcConfigVariableRef = builder.objectRef<PlcVariable<M, S>>(
-    "PlcVariable",
-  );
+  const PlcConfigVariableRef =
+    builder.objectRef<PlcVariable<M, S>>("PlcVariable");
   const PlcConfigMqttRef = builder.objectRef<MqttConnection>("PlcMqttConfig");
   const PlcConfigSourcesRef = builder.objectRef<PlcSource>("PlcSourcesConfig");
 
-  const PlcRuntimeRef = builder.objectRef<Plc<M, S, V>["runtime"]>(
-    "PlcRuntime",
-  );
-  const PlcRuntimeTaskRef = builder.objectRef<PlcTaskRuntime<M, S, V>>(
-    "PlcTaskRuntime",
-  );
-  const PlcRuntimeTaskMetricsRef = builder.objectRef<
-    PlcTaskRuntime<M, S, V>["metrics"]
-  >("PlcTaskMetrics");
-  const PlcRuntimeTaskErrorRef = builder.objectRef<
-    PlcTaskRuntime<M, S, V>["error"]
-  >("PlcTaskError");
-  const PlcRuntimeVariableRef = builder.objectRef<PlcVariableRuntime<M, S>>(
-    "PlcVariableRuntime",
-  );
+  const PlcRuntimeRef =
+    builder.objectRef<Plc<M, S, V>["runtime"]>("PlcRuntime");
+  const PlcRuntimeTaskRef =
+    builder.objectRef<PlcTaskRuntime<M, S, V>>("PlcTaskRuntime");
+  const PlcRuntimeTaskMetricsRef =
+    builder.objectRef<PlcTaskRuntime<M, S, V>["metrics"]>("PlcTaskMetrics");
+  const PlcRuntimeTaskErrorRef =
+    builder.objectRef<PlcTaskRuntime<M, S, V>["error"]>("PlcTaskError");
+  const PlcRuntimeVariableRef =
+    builder.objectRef<PlcVariableRuntime<M, S>>("PlcVariableRuntime");
   const PlcRuntimeVariableModbusSourceRef = builder.objectRef<
     PlcVariableModbusSourceRuntime<S>
   >("PlcVariableModbusSourceRuntime");
   const PlcRuntimeVariableOpcuaSourceRef = builder.objectRef<
     PlcVariableOpcuaSourceRuntime<S>
   >("PlcVariableOpcuaSourceRuntime");
-  const PlcRuntimeVariableRestSourceRef = builder.objectRef<
-    PlcVariableRestSourceRuntime
-  >("PlcVariableRestSourceRuntime");
+  const PlcRuntimeVariableRestSourceRef =
+    builder.objectRef<PlcVariableRestSourceRuntime>(
+      "PlcVariableRestSourceRuntime"
+    );
   const PlcRuntimeVariableMqttSourceRef = builder.objectRef<
     PlcVariableMqttSourceRuntime<M>
   >("PlcVariableMqttSourceRuntime");
-  const PlcRuntimeVariableErrorRef = builder.objectRef<
-    {
-      error: string | null;
-      message?: string | null;
-      stack?: string | null;
-      timestamp: Date;
-    } | null
-  >("PlcVariableError");
+  const PlcRuntimeVariableErrorRef = builder.objectRef<{
+    error: string | null;
+    message?: string | null;
+    stack?: string | null;
+    timestamp: Date;
+  } | null>("PlcVariableError");
 
   PlcRuntimeVariableErrorRef.implement({
     fields: (t) => ({
@@ -117,9 +111,8 @@ export function addPlcToSchema<
   });
 
   const PlcRuntimeMqttRef = builder.objectRef<SparkplugNode>("PlcMqttRuntime");
-  const PlcRuntimeSourceRef = builder.objectRef<PlcSourceRuntime>(
-    "PlcSourceRuntime",
-  );
+  const PlcRuntimeSourceRef =
+    builder.objectRef<PlcSourceRuntime>("PlcSourceRuntime");
 
   const PlcRuntimeVariableSourceRef = builder.unionType(
     "PlcVariableSourceRuntime",
@@ -145,7 +138,7 @@ export function addPlcToSchema<
         }
         return undefined;
       },
-    },
+    }
   );
 
   PlcConfigTaskRef.implement({
@@ -258,6 +251,8 @@ export function addPlcToSchema<
         resolve: (parent) => {
           if (isSourceModbus(parent)) {
             return getModbusStateString(parent.client);
+          } else if (isSourceRedis(parent)) {
+            return getRedisStateString(parent.client);
           } else {
             return "Unknown";
           }
@@ -382,7 +377,7 @@ export function addPlcToSchema<
       }),
       executeTime: t.float({
         resolve: (parent) => parent.execute.measurement,
-      })
+      }),
     }),
   });
   PlcRuntimeTaskErrorRef.implement({
@@ -462,7 +457,8 @@ export function addPlcToSchema<
       resolve: (_, _args, context) => {
         return context.plc;
       },
-    }));
+    })
+  );
   builder.mutationField("enableSource", (t) =>
     t.field({
       args: {
@@ -478,7 +474,8 @@ export function addPlcToSchema<
         plc.runtime.sources[sourceId].enabled = true;
         return plc;
       },
-    }));
+    })
+  );
   builder.mutationField("setValue", (t) =>
     t.field({
       args: {
@@ -494,19 +491,21 @@ export function addPlcToSchema<
         }
         const datatype = plc.runtime.variables[variableId].datatype;
         if (datatype === "boolean") {
-          plc.runtime.variables[variableId].value = value === "true";
+          updateRuntimeValue(plc, variableId, value === "true");
         } else if (datatype === "number") {
-          plc.runtime.variables[variableId].value = Number(value);
+          updateRuntimeValue(plc, variableId, Number(value));
         } else {
-          plc.runtime.variables[variableId].value = value;
+          updateRuntimeValue(plc, variableId, value);
         }
         return plc;
       },
-    }));
+    })
+  );
   builder.subscriptionField("plc", (t) =>
     t.field({
       type: PlcRef,
       subscribe: () => pubsub.subscribe("plcUpdate"),
       resolve: (payload) => payload,
-    }));
+    })
+  );
 }

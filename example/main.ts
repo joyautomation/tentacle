@@ -4,6 +4,9 @@ import {
   type PlcVariableNumberWithMqttSource,
   type PlcVariableNumberWithModbusSource,
   PlcModbusSource,
+  PlcRedisSource,
+  PlcVariableNumberWithRedisSource,
+  PlcVariableBooleanWithRedisSource,
 } from "../index.ts";
 import type { MqttConnection } from "../types/mqtt.ts";
 import type { PlcVariableNumber } from "../types/variables.ts";
@@ -19,6 +22,7 @@ type Mqtts = {
 
 type Sources = {
   modbus: PlcModbusSource;
+  fr202: PlcRedisSource;
 };
 
 type Variables = {
@@ -26,6 +30,9 @@ type Variables = {
   count: PlcVariableNumber;
   temperature: PlcVariableNumberWithMqttSource<Mqtts>;
   modbusValue: PlcVariableNumberWithModbusSource<Sources>;
+  redisValue: PlcVariableNumberWithRedisSource<Sources>;
+  redisBooleanDi: PlcVariableBooleanWithRedisSource<Sources>;
+  redisBooleanDo: PlcVariableBooleanWithRedisSource<Sources>;
 };
 
 const hexToValue = (hexString: string) =>
@@ -58,18 +65,14 @@ function numberToHexString(num?: number | boolean | string): string {
 
 const main = await createTentacle<Mqtts, Sources, Variables>({
   redisUrl: `redis://${Deno.env.get("TENTACLE_EXAMPLE_REDIS_HOST")}:6379`,
-  // ha: {
-  //   lease: "tentacle-test",
-  //   namespace: "xbox1",
-  // },
   tasks: {
     main: {
       name: "main",
       description: "The main task",
       scanRate: 1000,
-      program: async (variables) => {
+      program: async (variables, setVar) => {
         await new Promise((resolve) => setTimeout(resolve, 100));
-        variables.count.value = variables.count.value + 1;
+        setVar("count", variables.count.value + 1);
       },
     },
   },
@@ -95,8 +98,63 @@ const main = await createTentacle<Mqtts, Sources, Variables>({
       description: `Modbus Source`,
       reverseBits: false,
     }),
+    fr202: {
+      id: `fr202`,
+      enabled: true,
+      name: `FR202`,
+      description: `FR202`,
+      host: `10.154.92.36`,
+      port: 60000,
+      retryMinDelay: 1000,
+      retryMaxDelay: 5000,
+      type: "redis",
+      redisUrl: `redis://192.168.82.25:6379`,
+    },
   },
   variables: {
+    redisBooleanDi: {
+      id: "redisBoolean",
+      datatype: "boolean",
+      description: "Redis Boolean",
+      default: false,
+      source: {
+        id: "fr202",
+        type: "redis",
+        key: "fr202:di:0:0",
+        onResponse: (value: string) => Boolean(Number(value)),
+      },
+    },
+    redisBooleanDo: {
+      id: "redisBooleanDo",
+      datatype: "boolean",
+      description: "Redis Boolean",
+      default: false,
+      source: {
+        id: "fr202",
+        type: "redis",
+        key: "fr202:do:0:1",
+        bidirectional: true,
+        onResponse: (value: string) => Boolean(Number(value)),
+        onSend: (value: boolean) => (!value ? "1" : "0"),
+      },
+    },
+    redisValue: {
+      id: "redisValue",
+      datatype: "number" as const,
+      decimals: 2,
+      description: "Redis Value",
+      default: 0,
+      deadband: {
+        maxTime: 60000,
+        value: 0.001,
+      },
+      source: {
+        id: "fr202",
+        type: "redis",
+        key: "fr202:ai:2",
+        onResponse: (value: string) => Number(value),
+      },
+    },
     modbusValue: {
       id: "modbusValue",
       datatype: "number" as const,

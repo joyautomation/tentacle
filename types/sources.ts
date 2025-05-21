@@ -3,6 +3,7 @@ import type {
   ModbusFormat,
   ModbusRegisterType,
 } from "../modbus/types.ts";
+import { Redis } from "../redis/types.ts";
 
 /**
  * Base configuration for a PLC source.
@@ -24,8 +25,8 @@ export type PlcSourceBase = {
   description: string;
   host: string;
   port: number;
-  retryMinDelay?: number;
-  retryMaxDelay?: number;
+  retryMinDelay: number;
+  retryMaxDelay: number;
 };
 
 /**
@@ -71,10 +72,25 @@ export type PlcMqttSource = PlcSourceBase & {
 };
 
 /**
+ * Configuration for a Redis source.
+ *
+ * @property {string} type - Must be "redis"
+ * @public
+ */
+export type PlcRedisSource = PlcSourceBase & {
+  type: "redis";
+  redisUrl: string;
+};
+
+/**
  * A PLC source can be either a Modbus or OPC UA source.
  * @public
  */
-export type PlcSource = PlcModbusSource | PlcOpcuaSource | PlcMqttSource;
+export type PlcSource =
+  | PlcModbusSource
+  | PlcOpcuaSource
+  | PlcMqttSource
+  | PlcRedisSource;
 
 /**
  * Runtime configuration for a Modbus source.
@@ -104,11 +120,19 @@ export type PlcOpcuaSourceRuntime = PlcOpcuaSource & {
   state: "connected" | "disconnected" | "error";
 };
 
+export type PlcRedisSourceRuntime = PlcRedisSource & {
+  client: Redis;
+  state: "connected" | "disconnected" | "error";
+};
+
 /**
  * Runtime configuration for a PLC source.
  * @public
  */
-export type PlcSourceRuntime = PlcModbusSourceRuntime | PlcOpcuaSourceRuntime;
+export type PlcSourceRuntime =
+  | PlcModbusSourceRuntime
+  | PlcOpcuaSourceRuntime
+  | PlcRedisSourceRuntime;
 
 /**
  * Collection of PLC sources mapped by their IDs.
@@ -117,7 +141,7 @@ export type PlcSourceRuntime = PlcModbusSourceRuntime | PlcOpcuaSourceRuntime;
  * @public
  */
 export type PlcSources<
-  T extends Record<string, PlcSource> = Record<string, PlcSource>,
+  T extends Record<string, PlcSource> = Record<string, PlcSource>
 > = T;
 
 /**
@@ -139,7 +163,6 @@ export type PlcSourcesRuntime<T extends PlcSources> = {
  */
 export type PlcVariableSourceBase = {
   id: string;
-  rate: number;
 };
 
 /**
@@ -175,14 +198,13 @@ export type PlcVariableSourceRuntimeBase = PlcVariableSourceBase & {
  * @public
  */
 export type PlcVariableModbusSource<S extends PlcSources> =
-  & PlcVariableSourceBase
-  & {
-    id:
-      & keyof { [K in keyof S]: S[K] extends PlcModbusSource ? K : never }
-      & {
+  PlcVariableSourceBase & {
+    id: keyof { [K in keyof S]: S[K] extends PlcModbusSource ? K : never } &
+      {
         [K in keyof S]: S[K] extends PlcModbusSource ? K : never;
       }[keyof S];
     type: "modbus";
+    rate: number;
     bidirectional?: boolean;
     onResponse?: (value: string | boolean | number) => number;
     onSend?: (value: number) => number;
@@ -199,8 +221,7 @@ export type PlcVariableModbusSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableModbusSourceRuntime<S extends PlcSources> =
-  & PlcVariableSourceRuntimeBase
-  & PlcVariableModbusSource<S>;
+  PlcVariableSourceRuntimeBase & PlcVariableModbusSource<S>;
 
 /**
  * Configuration for an OPC UA variable source.
@@ -211,14 +232,13 @@ export type PlcVariableModbusSourceRuntime<S extends PlcSources> =
  * @public
  */
 export type PlcVariableOpcuaSource<S extends PlcSources> =
-  & PlcVariableSourceBase
-  & {
-    id:
-      & keyof { [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never }
-      & {
+  PlcVariableSourceBase & {
+    id: keyof { [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never } &
+      {
         [K in keyof S]: S[K] extends PlcOpcuaSource ? K : never;
       }[keyof S];
     type: "opcua";
+    rate: number;
   };
 
 /**
@@ -229,8 +249,27 @@ export type PlcVariableOpcuaSource<S extends PlcSources> =
  * @public
  */
 export type PlcVariableOpcuaSourceRuntime<S extends PlcSources> =
-  & PlcVariableSourceRuntimeBase
-  & PlcVariableOpcuaSource<S>;
+  PlcVariableSourceRuntimeBase & PlcVariableOpcuaSource<S>;
+
+export type PlcVariableRedisSource<
+  S extends PlcSources,
+  T
+> = PlcVariableSourceBase & {
+  id: keyof { [K in keyof S]: S[K] extends PlcRedisSource ? K : never } &
+    {
+      [K in keyof S]: S[K] extends PlcRedisSource ? K : never;
+    }[keyof S];
+  type: "redis";
+  key: string;
+  bidirectional?: boolean;
+  onResponse?: (value: string) => T;
+  onSend?: (value: T) => string;
+};
+
+export type PlcVariableRedisSourceRuntime<
+  S extends PlcSources,
+  T
+> = PlcVariableSourceRuntimeBase & PlcVariableRedisSource<S, T>;
 
 /**
  * Runtime configuration for a variable source.
@@ -238,9 +277,10 @@ export type PlcVariableOpcuaSourceRuntime<S extends PlcSources> =
  * @template S - Type extending PlcSources
  * @public
  */
-export type PlcVariableSourceRuntime<S extends PlcSources> =
+export type PlcVariableSourceRuntime<S extends PlcSources, T> =
   | PlcVariableModbusSourceRuntime<S>
-  | PlcVariableOpcuaSourceRuntime<S>;
+  | PlcVariableOpcuaSourceRuntime<S>
+  | PlcVariableRedisSourceRuntime<S, T>;
 
 /**
  * Mixin for types that have a Modbus source.
@@ -287,6 +327,28 @@ export type WithOpcuaSourceRuntime<S extends PlcSources> = {
 };
 
 /**
+ * Mixin for types that have a Redis source.
+ *
+ * @template S - Type extending PlcSources
+ * @property {PlcVariableRedisSource<S>} source - Redis source configuration
+ * @public
+ */
+export type WithRedisSource<S extends PlcSources, T> = {
+  source: PlcVariableRedisSource<S, T>;
+};
+
+/**
+ * Mixin for types that have a Redis source at runtime.
+ *
+ * @template S - Type extending PlcSources
+ * @property {PlcVariableRedisSourceRuntime<S, T>} source - Redis source runtime configuration
+ * @public
+ */
+export type WithRedisSourceRuntime<S extends PlcSources, T> = {
+  source: PlcVariableRedisSourceRuntime<S, T>;
+};
+
+/**
  * Type guard to check if a source is a Modbus source.
  *
  * @param {unknown} source - Source to check
@@ -313,6 +375,19 @@ export const isSourceOpcua = (source: unknown): source is PlcOpcuaSource =>
   (source as { type: string }).type === "opcua";
 
 /**
+ * Type guard to check if a source is a Redis source.
+ *
+ * @param {unknown} source - Source to check
+ * @returns {boolean} True if the source is a Redis source
+ * @public
+ */
+export const isSourceRedis = (source: unknown): source is PlcRedisSource =>
+  typeof source === "object" &&
+  source !== null &&
+  "type" in source &&
+  (source as { type: string }).type === "redis";
+
+/**
  * Type guard to check if a source is a Modbus source at runtime.
  *
  * @template S - Type extending PlcSources
@@ -321,7 +396,7 @@ export const isSourceOpcua = (source: unknown): source is PlcOpcuaSource =>
  * @public
  */
 export const isVariableModbusSourceRuntime = <S extends PlcSources>(
-  source: unknown,
+  source: unknown
 ): source is PlcVariableModbusSourceRuntime<S> => {
   if (
     typeof source === "object" &&
@@ -348,17 +423,33 @@ export const isVariableModbusSourceRuntime = <S extends PlcSources>(
  * @public
  */
 export const isVariableOpcuaSourceRuntime = <S extends PlcSources>(
-  source: unknown,
+  source: unknown
 ): source is PlcVariableOpcuaSourceRuntime<S> => {
-  if (
-    typeof source === "object" &&
-    source !== null &&
-    "type" in source
-  ) {
+  if (typeof source === "object" && source !== null && "type" in source) {
     const { type } = source as {
       type: string;
     };
     return type === "opcua";
+  }
+  return false;
+};
+
+/**
+ * Type guard to check if a source is a Redis source at runtime.
+ *
+ * @template S - Type extending PlcSources
+ * @param {unknown} source - Source to check
+ * @returns {boolean} True if the source is a Redis source at runtime
+ * @public
+ */
+export const isVariableRedisSourceRuntime = <S extends PlcSources, T>(
+  source: unknown
+): source is PlcVariableRedisSourceRuntime<S, T> => {
+  if (typeof source === "object" && source !== null && "type" in source) {
+    const { type } = source as {
+      type: string;
+    };
+    return type === "redis";
   }
   return false;
 };
