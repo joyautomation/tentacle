@@ -6,6 +6,8 @@ import { rateLimitedPublish } from "../pubsub.ts";
 import {
   isSourceModbus,
   isSourceOpcua,
+  isSourceRedis,
+  PlcRedisSourceRuntime,
   type PlcModbusSource,
   type PlcSources,
   type PlcSourcesRuntime,
@@ -13,6 +15,7 @@ import {
 import {
   hasModbusSource,
   hasOpcuaSource,
+  hasRedisSource,
   hasRestSource,
   isVariableBoolean,
   isVariableNumber,
@@ -35,6 +38,7 @@ import {
   publishVariables,
   setVariableValuesFromRedis,
 } from "../redis.ts";
+import { createRedisSource } from "../redis/client.ts";
 import type { PlcMqtts } from "../types/mqtt.ts";
 import { sendRestRequest } from "../rest.ts";
 import { logs } from "../log.ts";
@@ -55,7 +59,6 @@ export async function createRedis<
     await new Promise((resolve) => setTimeout(resolve, 5000));
     return createRedis(config);
   }
-  return undefined;
 }
 
 export async function createPlc<
@@ -178,6 +181,9 @@ export async function createSources<
         if (isSourceOpcua(source)) {
           return [key, { ...source, client: null }];
         }
+        if (isSourceRedis(source)) {
+          return [key, { ...source, client: await createRedisSource(source) }];
+        }
         throw new Error(`Unknown source type: ${JSON.stringify(source)}`);
       })
     )
@@ -192,13 +198,28 @@ export function updateRuntimeValue<
   M extends PlcMqtts,
   S extends PlcSources,
   V extends PlcVariables<M, S>
->(plc: Plc<M, S, V>, variableId: string, value: number | boolean) {
-  plc.runtime.variables[variableId].value = value;
+>(plc: Plc<M, S, V>, variableId: keyof PlcVariablesRuntime<M, S, V>, value: number | boolean | string) {
+  const variable = plc.runtime.variables[variableId];
+  variable.value = value;
   if (plc.runtime.redis?.publisher) {
-    publishVariable(
-      plc.runtime.redis.publisher,
-      plc.runtime.variables[variableId]
-    );
+    publishVariable(plc.runtime.redis.publisher, variable);
+  }
+  if (hasRedisSource(variable) && variable.source.bidirectional) {
+    const source = plc.runtime.sources[variable.source.id];
+    if (isSourceRedis(source)) {
+      source.client?.publisher?.set(
+        variable.source.key,
+        variable.source.onSend
+          ? variable.source.onSend(value)
+          : value.toString()
+      );
+      source.client?.publisher?.publish(
+        variable.source.key,
+        variable.source.onSend
+          ? variable.source.onSend(value)
+          : value.toString()
+      );
+    }
   }
 }
 
@@ -206,7 +227,7 @@ export function updateRuntimeError<
   M extends PlcMqtts,
   S extends PlcSources,
   V extends PlcVariables<M, S>
->(plc: Plc<M, S, V>, variableId: string, error: string) {
+>(plc: Plc<M, S, V>, variableId: keyof PlcVariablesRuntime<M, S, V>, error: string) {
   plc.runtime.variables[variableId].error = {
     error: "Error",
     message: error,
@@ -323,74 +344,78 @@ export function startSourceIntervals<
         },
         {} as Record<string, PlcVariablesRuntime<M, S, V>>
       );
-      source.intervals = Object.entries(rates).map(([rate, variables]) =>
-        setInterval(async () => {
-          for (const [variableId, variable] of Object.entries(variables)) {
-            if (hasModbusSource(variable)) {
-              log.debug(
-                `Modbus interval scanned, client connected is ${source.client?.states.connected}, and source enabled is ${source.enabled}`
-              );
-              if (source.client?.states.connected && source.enabled) {
-                if (
-                  variable.source.bidirectional &&
-                  (variable.source.registerType === "COIL" ||
-                    variable.source.registerType === "HOLDING_REGISTER")
-                ) {
-                  const currentVariable = plc.runtime.variables[variableId];
-                  log.debug(
-                    `Writing to modbus ${source.id} - ${variableId} = ${currentVariable.value}`
-                  );
-                  const writeResult = await writeModbus(
-                    variable.source.register,
-                    variable.source.registerType,
-                    source.client,
-                    //@ts-ignore fix type
-                    currentVariable.value
-                  );
-                  if (isFail(writeResult)) {
-                    log.warn(
-                      `Failed to write to modbus ${source.id} - ${variableId}: ${writeResult.error}`
+      if (isSourceModbus(source)) {
+        source.intervals = Object.entries(rates).map(([rate, variables]) =>
+          setInterval(async () => {
+            for (const [variableId, variable] of Object.entries(variables)) {
+              if (hasModbusSource(variable)) {
+                log.debug(
+                  `Modbus interval scanned, client connected is ${source.client?.states.connected}, and source enabled is ${source.enabled}`
+                );
+                if (source.client?.states.connected && source.enabled) {
+                  if (
+                    variable.source.bidirectional &&
+                    (variable.source.registerType === "COIL" ||
+                      variable.source.registerType === "HOLDING_REGISTER")
+                  ) {
+                    const currentVariable = plc.runtime.variables[variableId];
+                    log.debug(
+                      `Writing to modbus ${source.id} - ${variableId} = ${currentVariable.value}`
                     );
-                    updateRuntimeError(plc, variableId, writeResult.error);
-                  }
-                  clearRuntimeError(plc, variableId);
-                }
-                if (!variable.source.bidirectional) {
-                  log.debug(`Reading from modbus ${source.id} - ${variableId}`);
-                  const result = await readModbus(
-                    variable.source.register,
-                    variable.source.registerType,
-                    variable.source.format,
-                    source.client
-                  );
-                  if (isSuccess(result)) {
-                    const value = variable.source.onResponse
-                      ? variable.source.onResponse(result.output)
-                      : result.output;
-                    updateRuntimeValue(plc, variableId, value);
-                    clearRuntimeError(plc, variableId);
-                  } else {
-                    log.warn(
-                      `Failed to read from modbus ${source.id} - ${variableId}: ${result.message}`
+                    const writeResult = await writeModbus(
+                      variable.source.register,
+                      variable.source.registerType,
+                      source.client,
+                      //@ts-ignore fix type
+                      currentVariable.value
                     );
-                    updateRuntimeError(
-                      plc,
-                      variableId,
-                      result.message || "Unknown error"
-                    );
-                    if (result.message?.includes("Port Not Open")) {
-                      failModbus(
-                        source.client,
-                        createModbusErrorProperties(result)
+                    if (isFail(writeResult)) {
+                      log.warn(
+                        `Failed to write to modbus ${source.id} - ${variableId}: ${writeResult.error}`
                       );
+                      updateRuntimeError(plc, variableId, writeResult.error);
+                    }
+                    clearRuntimeError(plc, variableId);
+                  }
+                  if (!variable.source.bidirectional) {
+                    log.debug(
+                      `Reading from modbus ${source.id} - ${variableId}`
+                    );
+                    const result = await readModbus(
+                      variable.source.register,
+                      variable.source.registerType,
+                      variable.source.format,
+                      source.client
+                    );
+                    if (isSuccess(result)) {
+                      const value = variable.source.onResponse
+                        ? variable.source.onResponse(result.output)
+                        : result.output;
+                      updateRuntimeValue(plc, variableId, value);
+                      clearRuntimeError(plc, variableId);
+                    } else {
+                      log.warn(
+                        `Failed to read from modbus ${source.id} - ${variableId}: ${result.message}`
+                      );
+                      updateRuntimeError(
+                        plc,
+                        variableId,
+                        result.message || "Unknown error"
+                      );
+                      if (result.message?.includes("Port Not Open")) {
+                        failModbus(
+                          source.client,
+                          createModbusErrorProperties(result)
+                        );
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        }, Number(rate))
-      );
+          }, Number(rate))
+        );
+      }
     }
   });
   return () => stopSourceIntervals(plc);
@@ -403,7 +428,9 @@ export function stopSourceIntervals<
 >(plc: Plc<M, S, V>) {
   const { sources } = plc.runtime;
   Object.values(sources).forEach((source) => {
-    source.intervals.forEach((interval) => clearInterval(interval));
+    if (isSourceModbus(source)) {
+      source.intervals.forEach((interval) => clearInterval(interval));
+    }
   });
   return plc;
 }
@@ -420,14 +447,118 @@ export function stopRestSourceIntervals<
   return plc;
 }
 
+const getRedisKeyToVariablesMap = <
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>
+>(
+  variables: PlcVariablesRuntime<M, S, V>,
+  source: PlcRedisSourceRuntime
+) => {
+  return Object.entries(variables)
+    .filter(([_, variable]) => {
+      return hasRedisSource(variable) && variable.source.id === source.id;
+    })
+    .reduce((acc, [variableId, variable]) => {
+      const key = variable.source.key;
+      if (!acc[key]) {
+        acc[key] = {};
+      }
+      acc[key][variableId] = variable;
+      return acc;
+    }, {} as Record<string, Record<string, PlcVariablesRuntime<M, S, V>[string]>>);
+};
+
+export function createRedisSourceVariables<
+  M extends PlcMqtts,
+  S extends PlcSources,
+  V extends PlcVariables<M, S>
+>(plc: Plc<M, S, V>) {
+  const { sources } = plc.runtime;
+  for (const source of Object.values(sources)) {
+    if (isSourceRedis(source)) {
+      const keyToVariablesMap = getRedisKeyToVariablesMap(
+        plc.runtime.variables,
+        source
+      );
+      source.client.subscriber.configSet("notify-keyspace-events", "KEA");
+      source.client.subscriber.pSubscribe(
+        `__keyevent@0__:*`,
+        async (...args) => {
+          // The eventKey is already the Redis key that was updated
+          const redisKey = args[0];
+          if (keyToVariablesMap[redisKey]) {
+            const value = await source.client.publisher.get(redisKey);
+
+            // Skip processing if value is null
+            if (value === null) return;
+
+            for (const [variableId, variable] of Object.entries(
+              keyToVariablesMap[redisKey]
+            )) {
+              // We already filtered by source.id in the map creation
+              if (
+                isVariableBoolean(variable) &&
+                hasRedisSource(variable) &&
+                !variable.source.bidirectional
+              ) {
+                if (variable.source.onResponse) {
+                  updateRuntimeValue(
+                    plc,
+                    variableId,
+                    Boolean(variable.source.onResponse(value))
+                  );
+                } else {
+                  updateRuntimeValue(plc, variableId, Boolean(value));
+                }
+              } else if (
+                isVariableNumber(variable) &&
+                hasRedisSource(variable)
+              ) {
+                if (
+                  variable.source.onResponse &&
+                  !variable.source.bidirectional
+                ) {
+                  updateRuntimeValue(
+                    plc,
+                    variableId,
+                    variable.source.onResponse(value) as number | boolean
+                  );
+                } else {
+                  updateRuntimeValue(plc, variableId, Number(value));
+                }
+              } else if (
+                isVariableString(variable) &&
+                hasRedisSource(variable)
+              ) {
+                // For string variables, we need to update directly since updateRuntimeValue only accepts number or boolean
+                plc.runtime.variables[variableId].value = value;
+                if (plc.runtime.redis?.publisher) {
+                  publishVariable(
+                    plc.runtime.redis.publisher,
+                    plc.runtime.variables[variableId]
+                  );
+                }
+              }
+            }
+          }
+        }
+      );
+    }
+  }
+}
+
 export const executeTask = <
   M extends PlcMqtts,
   S extends PlcSources,
   V extends PlcVariables<M, S>
 >(
-  task: (variables: PlcVariablesRuntime<M, S, V>) => Promise<void> | void,
-  variables: PlcVariablesRuntime<M, S, V>
-) => rTryAsync(async () => await task(variables));
+  task: (
+  variables: PlcVariablesRuntime<M, S, V>,
+  updateVariable: (variableId: keyof PlcVariablesRuntime<M, S, V>, value: number | boolean | string) => void ) => Promise<void> | void,
+  variables: PlcVariablesRuntime<M, S, V>,
+  updateVariable: (variableId: keyof PlcVariablesRuntime<M, S, V>, value: number | boolean | string) => void
+) => rTryAsync(async () => await task(variables, updateVariable));
 
 export function createTasks<
   M extends PlcMqtts,
@@ -441,13 +572,13 @@ export function createTasks<
         wait: {
           start: 0,
           end: 0,
-          measurement: 0
+          measurement: 0,
         },
         execute: {
           start: 0,
           end: 0,
-          measurement: 0
-        }
+          measurement: 0,
+        },
       };
       const error: PlcTaskRuntime<M, S, V>["error"] = {
         error: null,
@@ -459,10 +590,10 @@ export function createTasks<
         {
           ...task,
           interval: setInterval(
-            async (variables: PlcVariablesRuntime<M, S, V>) => {
+            async (variables: PlcVariablesRuntime<M, S, V>, updateVariable: (variableId: keyof PlcVariablesRuntime<M, S, V>, value: number | boolean | string) => void) => {
               metrics.wait.end = performance.now();
               metrics.execute.start = performance.now();
-              const result = await executeTask(task.program, variables);
+              const result = await executeTask(task.program, variables, updateVariable);
               if (isFail(result)) {
                 error.error = result.error;
                 error.message = result.message;
@@ -470,7 +601,8 @@ export function createTasks<
               }
               updateMetricValues(plc);
               metrics.execute.end = performance.now();
-              metrics.execute.measurement = metrics.execute.end - metrics.execute.start;
+              metrics.execute.measurement =
+                metrics.execute.end - metrics.execute.start;
               metrics.wait.measurement = metrics.wait.end - metrics.wait.start;
               metrics.wait.start = performance.now();
               rateLimitedPublish("plcUpdate", plc);
@@ -482,7 +614,10 @@ export function createTasks<
               }
             },
             task.scanRate,
-            plc.runtime.variables
+            plc.runtime.variables,
+            (variableId: keyof typeof plc.runtime.variables, value: number | boolean | string) => {
+              updateRuntimeValue(plc, variableId, value);
+            }
           ),
           metrics,
           error,
@@ -517,6 +652,7 @@ export async function startPlc<
   }
   const destroySources = await createSources(plc);
   const destroyRestSources = startRestSourceIntervals(plc);
+  createRedisSourceVariables(plc);
   let destroyPlcMqtt = createPlcMqtt(plc);
   const mqttRefreshInterval = setInterval(() => {
     destroyPlcMqtt();

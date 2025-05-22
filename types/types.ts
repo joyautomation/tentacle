@@ -23,7 +23,7 @@ export type PlcTask<
   name: string;
   description: string;
   scanRate: number;
-  program: (variables: PlcVariablesRuntime<M, S, V>) => Promise<void> | void;
+  program: (variables: PlcVariablesRuntime<M, S, V>, updateVariable: (variableId: keyof PlcVariablesRuntime<M, S, V>, value: number | boolean | string) => void) => Promise<void> | void;
 };
 
 /**
