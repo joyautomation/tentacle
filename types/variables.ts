@@ -22,6 +22,14 @@ import {
   type WithOpcuaSourceRuntime,
 } from "./sources.ts";
 
+export type PlcVariableTag = {
+  id: string;
+  description: string;
+  isTemplate?: boolean;
+};
+
+export type PlcVariableTags = Record<string, PlcVariableTag>;
+
 /**
  * Represents a PLC variable with optional source configuration.
  * @template S - Type extending PlcSources defining available PLC sources
