@@ -353,7 +353,6 @@ function writeModbusFormatValue(value: number, format: string, modbus: Modbus): 
     view.setInt16(0, value)
     data.push(view.getUint16(0, modbus.reverseBits))
   }
-  console.log('data', data)
   return data
 }
 

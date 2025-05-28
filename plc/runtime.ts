@@ -359,7 +359,7 @@ export function startSourceIntervals<
                       variable.source.registerType === "HOLDING_REGISTER")
                   ) {
                     const currentVariable = plc.runtime.variables[variableId];
-                    log.info(
+                    log.debug(
                       `Writing to modbus ${source.id} - ${variableId} = ${currentVariable.value}`
                     );
                     const writeResult = await writeModbus(
