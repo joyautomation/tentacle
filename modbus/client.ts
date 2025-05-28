@@ -337,6 +337,25 @@ function readModbusFormatValue(
   throw new Error(`Unsupported format: ${format}`);
 }
 
+function writeModbusFormatValue(value: number, format: string, modbus: Modbus): number[] {
+  const buffer = new ArrayBuffer(4)
+  const view = new DataView(buffer)
+  const data: number[] = []
+  if (format === `FLOAT`) {
+    view.setFloat32(0, value)
+    data.push(view.getUint16(modbus.reverseWords ? 2 : 0, modbus.reverseBits))
+    data.push(view.getUint16(modbus.reverseWords ? 0 : 2, modbus.reverseBits))
+  } else if (format === `INT32`) {
+    view.setInt32(0, value)
+    data.push(view.getUint16(modbus.reverseWords ? 0 : 2, modbus.reverseBits))
+    data.push(view.getUint16(modbus.reverseWords ? 2 : 0, modbus.reverseBits))
+  } else if (format === `INT16`) {
+    view.setInt16(0, value)
+    data.push(view.getUint16(0, modbus.reverseBits))
+  }
+  return data
+}
+
 export type ModbusError = {
   name: string;
   message: string;
@@ -431,6 +450,7 @@ export type ModbusWriteFunctions = {
 export async function writeModbus(
   register: number,
   registerType: "HOLDING_REGISTER" | "COIL",
+  format: ModbusFormat,
   modbus: Modbus,
   value: number | boolean,
 ): Promise<Result<void>> {
@@ -444,6 +464,7 @@ export async function writeModbus(
     );
   }
 
+  modbus.client.writeRegisters
   const functionMap: ModbusWriteFunctions = {
     HOLDING_REGISTER: modbus.client.writeRegisters.bind(modbus.client),
     COIL: modbus.client.writeCoils.bind(modbus.client),
@@ -451,7 +472,7 @@ export async function writeModbus(
 
   const result = await Promise.race([
     // @ts-ignore fix this type problem later
-    functionMap[registerType](register, [value])
+    functionMap[registerType](register, writeModbusFormatValue(value, format, modbus))
       .then(() => createSuccess(undefined))
       .catch((error) => createFail(error)),
     timeoutPromise(3000),

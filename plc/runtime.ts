@@ -359,21 +359,22 @@ export function startSourceIntervals<
                       variable.source.registerType === "HOLDING_REGISTER")
                   ) {
                     const currentVariable = plc.runtime.variables[variableId];
-                    log.debug(
+                    log.info(
                       `Writing to modbus ${source.id} - ${variableId} = ${currentVariable.value}`
                     );
                     const writeResult = await writeModbus(
                       variable.source.register,
                       variable.source.registerType,
+                      variable.source.format,
                       source.client,
                       //@ts-ignore fix type
                       currentVariable.value
                     );
                     if (isFail(writeResult)) {
                       log.warn(
-                        `Failed to write to modbus ${source.id} - ${variableId}: ${writeResult.error}`
+                        `Failed to write to modbus ${source.id} - ${variableId}: ${JSON.stringify(writeResult.message)}`
                       );
-                      updateRuntimeError(plc, variableId, writeResult.error);
+                      updateRuntimeError(plc, variableId, writeResult.message || "Unknown error");
                     }
                     clearRuntimeError(plc, variableId);
                   }
