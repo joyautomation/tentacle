@@ -368,7 +368,7 @@ export function startSourceIntervals<
                       variable.source.format,
                       source.client,
                       //@ts-ignore fix type
-                      currentVariable.value
+                      variable.source.onSend(currentVariable.value)
                     );
                     if (isFail(writeResult)) {
                       log.warn(
