@@ -365,15 +365,19 @@ export function startSourceIntervals<
                     const writeResult = await writeModbus(
                       variable.source.register,
                       variable.source.registerType,
+                      variable.source.format,
                       source.client,
                       //@ts-ignore fix type
-                      currentVariable.value
+                      variable.source.onSend
+                      //@ts-expect-error TODO: fix type later
+                        ? variable.source.onSend(currentVariable.value)
+                        : currentVariable.value
                     );
                     if (isFail(writeResult)) {
                       log.warn(
-                        `Failed to write to modbus ${source.id} - ${variableId}: ${writeResult.error}`
+                        `Failed to write to modbus ${source.id} - ${variableId}: ${JSON.stringify(writeResult.message)}`
                       );
-                      updateRuntimeError(plc, variableId, writeResult.error);
+                      updateRuntimeError(plc, variableId, writeResult.message || "Unknown error");
                     }
                     clearRuntimeError(plc, variableId);
                   }

@@ -22,6 +22,8 @@ import { getModbusStateString } from "./modbus/client.ts";
 import type { PlcMqtts } from "./types/mqtt.ts";
 import { updateRuntimeValue } from "./plc/runtime.ts";
 import type { Buffer } from "node:buffer";
+import { logs } from "./log.ts";
+const log = logs.main;
 
 export const variableTypeToSparkplugType = (datatype: string): TypeStr => {
   switch (datatype) {
@@ -195,10 +197,14 @@ export function createPlcMqtt<
                 for (const [variableId, variable] of Object.entries(
                   variables
                 )) {
-                  const value = variable.source.onResponse
-                    ? variable.source.onResponse(message)
-                    : message;
-                  updateRuntimeValue(plc, variableId, value);
+                  try {
+                    const value = variable.source.onResponse
+                      ? variable.source.onResponse(message)
+                      : message;
+                    updateRuntimeValue(plc, variableId, value);
+                  } catch (error) {
+                    log.warn(`Error updating variable ${variableId}: ${error}`);
+                  }
                 }
               },
             ];
