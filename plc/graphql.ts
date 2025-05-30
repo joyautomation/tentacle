@@ -19,6 +19,8 @@ import {
   isSourceRedis,
   isVariableModbusSourceRuntime,
   isVariableOpcuaSourceRuntime,
+  isVariableRedisSourceRuntime,
+  type PlcVariableRedisSourceRuntime,
   type PlcSource,
   type PlcSourceRuntime,
   type PlcSources,
@@ -82,6 +84,9 @@ export function addPlcToSchema<
   const PlcRuntimeVariableMqttSourceRef = builder.objectRef<
     PlcVariableMqttSourceRuntime<M>
   >("PlcVariableMqttSourceRuntime");
+  const PlcRuntimeVariableRedisSourceRef = builder.objectRef<
+    PlcVariableRedisSourceRuntime<S, unknown>
+  >("PlcVariableRedisSourceRuntime");
   const PlcRuntimeVariableErrorRef = builder.objectRef<{
     error: string | null;
     message?: string | null;
@@ -122,6 +127,7 @@ export function addPlcToSchema<
         PlcRuntimeVariableOpcuaSourceRef,
         PlcRuntimeVariableRestSourceRef,
         PlcRuntimeVariableMqttSourceRef,
+        PlcRuntimeVariableRedisSourceRef,
       ],
       resolveType: (source) => {
         if (isSourceModbus(source)) {
@@ -135,6 +141,9 @@ export function addPlcToSchema<
         }
         if (isSourceMqtt(source)) {
           return "PlcVariableMqttSourceRuntime";
+        }
+        if (isSourceRedis(source)) {
+          return "PlcVariableRedisSourceRuntime";
         }
         return undefined;
       },
@@ -320,6 +329,16 @@ export function addPlcToSchema<
       }),
     }),
   });
+  PlcRuntimeVariableRedisSourceRef.implement({
+    fields: (t) => ({
+      id: t.string({
+        resolve: (parent) => parent.id.toString(),
+      }),
+      type: t.exposeString("type"),
+      key: t.exposeString("key"),
+      bidirectional: t.exposeBoolean("bidirectional"),
+    }),
+  });
   PlcRuntimeVariableRef.implement({
     fields: (t) => ({
       id: t.exposeString("id"),
@@ -362,6 +381,9 @@ export function addPlcToSchema<
               return source;
             }
             if (isVariableMqttSourceRuntime(source)) {
+              return source;
+            }
+            if (isVariableRedisSourceRuntime(source)) {
               return source;
             }
           }
