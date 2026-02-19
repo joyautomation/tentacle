@@ -1,0 +1,92 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-sd", "/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  graphql:
+    build:
+      context: .
+      dockerfile: Dockerfile.graphql
+    ports:
+      - "4000:4000"
+    environment:
+      - NATS_SERVERS=nats://nats:4222
+      - GRAPHQL_PORT=4000
+      - GRAPHQL_HOSTNAME=0.0.0.0
+      - TENTACLE_MODE=docker
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "3012:3012"
+    environment:
+      - GRAPHQL_URL=http://graphql:4000/graphql
+      - PORT=3012
+    depends_on:
+      - graphql
+    restart: unless-stopped
+
+  ethernetip:
+    build:
+      context: .
+      dockerfile: Dockerfile.ethernetip
+    environment:
+      - NATS_SERVERS=nats://nats:4222
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    # Uncomment for EtherNet/IP scanning (needs L2 network access):
+    # network_mode: host
+
+  opcua:
+    build:
+      context: .
+      dockerfile: Dockerfile.opcua
+    environment:
+      - NATS_SERVERS=nats://nats:4222
+      - OPCUA_PKI_DIR=/data/pki
+      - OPCUA_AUTO_ACCEPT_CERTS=true
+    volumes:
+      - opcua-pki:/data/pki
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mqtt:
+    build:
+      context: .
+      dockerfile: Dockerfile.mqtt
+    environment:
+      - NATS_SERVERS=nats://nats:4222
+      # Configure MQTT broker connection:
+      # - MQTT_BROKER_URL=mqtt://your-broker:1883
+      # - MQTT_CLIENT_ID=tentacle-mqtt
+      # - MQTT_GROUP_ID=TentacleGroup
+      # - MQTT_EDGE_NODE=EdgeNode1
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  nats-data:
+  opcua-pki:

@@ -1,0 +1,6 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY bin/tentacle-web /usr/local/bin/tentacle-web
+RUN chmod +x /usr/local/bin/tentacle-web
+EXPOSE 3012
+ENTRYPOINT ["/usr/local/bin/tentacle-web"]

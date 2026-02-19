@@ -1,0 +1,18 @@
+[Unit]
+Description=Tentacle NATS Server
+Documentation=https://docs.nats.io/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/tentacle/bin/nats-server -js -sd /opt/tentacle/data/nats
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tentacle-nats
+
+[Install]
+WantedBy=multi-user.target

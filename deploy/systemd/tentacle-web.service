@@ -1,0 +1,18 @@
+[Unit]
+Description=Tentacle Web Dashboard
+Documentation=https://github.com/joyautomation/tentacle
+After=tentacle-graphql.service
+Wants=tentacle-graphql.service
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/tentacle/config/tentacle.env
+ExecStart=/opt/tentacle/bin/tentacle-web
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tentacle-web
+
+[Install]
+WantedBy=multi-user.target

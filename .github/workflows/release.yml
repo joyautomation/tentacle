@@ -1,0 +1,386 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+
+env:
+  NATS_VERSION: "2.10.24"
+  GH_ORG: joyautomation
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Compile Deno services (cross-platform)
+  # Each module is its own repo; all depend on tentacle-nats-schema
+  # ═══════════════════════════════════════════════════════════════════════════
+  compile-deno:
+    strategy:
+      matrix:
+        service:
+          - name: tentacle-graphql
+            repo: tentacle-graphql
+            check: true
+          - name: tentacle-ethernetip
+            repo: tentacle-ethernetip
+            check: true
+          - name: tentacle-mqtt
+            repo: tentacle-mqtt
+            check: true
+        target:
+          - { deno: x86_64-unknown-linux-gnu, os: linux, arch: amd64, runner: ubuntu-latest }
+          - { deno: aarch64-unknown-linux-gnu, os: linux, arch: arm64, runner: ubuntu-latest }
+          - { deno: x86_64-pc-windows-msvc, os: windows, arch: amd64, runner: ubuntu-latest }
+          - { deno: aarch64-apple-darwin, os: darwin, arch: arm64, runner: macos-14 }
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GH_ORG }}/${{ matrix.service.repo }}
+          path: ${{ matrix.service.repo }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GH_ORG }}/tentacle-nats-schema
+          path: tentacle-nats-schema
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Compile ${{ matrix.service.name }} for ${{ matrix.target.os }}-${{ matrix.target.arch }}
+        run: |
+          EXT=""
+          if [ "${{ matrix.target.os }}" = "windows" ]; then EXT=".exe"; fi
+          cd ${{ matrix.service.repo }}
+          deno compile --allow-all \
+            --target ${{ matrix.target.deno }} \
+            --output ../dist/${{ matrix.service.name }}-${{ matrix.target.os }}-${{ matrix.target.arch }}${EXT} \
+            main.ts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service.name }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: dist/${{ matrix.service.name }}-*
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Compile Linux-only Deno services (network, nftables)
+  # ═══════════════════════════════════════════════════════════════════════════
+  compile-deno-linux:
+    strategy:
+      matrix:
+        service:
+          - name: tentacle-network
+            repo: tentacle-network
+          - name: tentacle-nftables
+            repo: tentacle-nftables
+        target:
+          - { deno: x86_64-unknown-linux-gnu, os: linux, arch: amd64 }
+          - { deno: aarch64-unknown-linux-gnu, os: linux, arch: arm64 }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GH_ORG }}/${{ matrix.service.repo }}
+          path: ${{ matrix.service.repo }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GH_ORG }}/tentacle-nats-schema
+          path: tentacle-nats-schema
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Compile ${{ matrix.service.name }} for ${{ matrix.target.os }}-${{ matrix.target.arch }}
+        run: |
+          cd ${{ matrix.service.repo }}
+          deno compile --allow-all \
+            --target ${{ matrix.target.deno }} \
+            --output ../dist/${{ matrix.service.name }}-${{ matrix.target.os }}-${{ matrix.target.arch }} \
+            main.ts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service.name }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: dist/${{ matrix.service.name }}-*
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Compile tentacle-web (SvelteKit → deno compile)
+  # ═══════════════════════════════════════════════════════════════════════════
+  compile-web:
+    strategy:
+      matrix:
+        target:
+          - { deno: x86_64-unknown-linux-gnu, os: linux, arch: amd64, runner: ubuntu-latest }
+          - { deno: aarch64-unknown-linux-gnu, os: linux, arch: arm64, runner: ubuntu-latest }
+          - { deno: x86_64-pc-windows-msvc, os: windows, arch: amd64, runner: ubuntu-latest }
+          - { deno: aarch64-apple-darwin, os: darwin, arch: arm64, runner: macos-14 }
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GH_ORG }}/tentacle-web
+          path: tentacle-web
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build SvelteKit
+        run: |
+          cd tentacle-web
+          npm ci
+          npm run build
+
+      - name: Compile tentacle-web for ${{ matrix.target.os }}-${{ matrix.target.arch }}
+        run: |
+          EXT=""
+          if [ "${{ matrix.target.os }}" = "windows" ]; then EXT=".exe"; fi
+          cd tentacle-web
+          deno compile --no-check --allow-all \
+            --target ${{ matrix.target.deno }} \
+            --include build/ \
+            --output ../dist/tentacle-web-${{ matrix.target.os }}-${{ matrix.target.arch }}${EXT} \
+            build/index.js
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tentacle-web-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: dist/tentacle-web-*
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Compile Go service (tentacle-opcua)
+  # ═══════════════════════════════════════════════════════════════════════════
+  compile-go:
+    strategy:
+      matrix:
+        target:
+          - { goos: linux, goarch: amd64, os: linux, arch: amd64 }
+          - { goos: linux, goarch: arm64, os: linux, arch: arm64 }
+          - { goos: darwin, goarch: arm64, os: darwin, arch: arm64 }
+          - { goos: windows, goarch: amd64, os: windows, arch: amd64 }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GH_ORG }}/tentacle-opcua-go
+          path: tentacle-opcua-go
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Compile tentacle-opcua for ${{ matrix.target.os }}-${{ matrix.target.arch }}
+        run: |
+          EXT=""
+          if [ "${{ matrix.target.os }}" = "windows" ]; then EXT=".exe"; fi
+          cd tentacle-opcua-go
+          CGO_ENABLED=0 GOOS=${{ matrix.target.goos }} GOARCH=${{ matrix.target.goarch }} \
+            go build -ldflags="-s -w" \
+            -o ../dist/tentacle-opcua-${{ matrix.target.os }}-${{ matrix.target.arch }}${EXT} .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tentacle-opcua-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: dist/tentacle-opcua-*
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Download NATS server binaries
+  # ═══════════════════════════════════════════════════════════════════════════
+  download-nats:
+    strategy:
+      matrix:
+        target:
+          - { suffix: linux-amd64.tar.gz, os: linux, arch: amd64, bin: nats-server }
+          - { suffix: linux-arm64.tar.gz, os: linux, arch: arm64, bin: nats-server }
+          - { suffix: darwin-arm64.tar.gz, os: darwin, arch: arm64, bin: nats-server }
+          - { suffix: windows-amd64.zip, os: windows, arch: amd64, bin: nats-server.exe }
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download NATS server v${{ env.NATS_VERSION }}
+        run: |
+          mkdir -p dist
+          URL="https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-${{ matrix.target.suffix }}"
+          curl -fSL "$URL" -o /tmp/nats-server-archive
+
+          if [[ "${{ matrix.target.suffix }}" == *.zip ]]; then
+            unzip -j /tmp/nats-server-archive "*/${{ matrix.target.bin }}" -d dist/
+          else
+            tar xzf /tmp/nats-server-archive --strip-components=1 -C dist/ \
+              "nats-server-v${NATS_VERSION}-${{ matrix.target.os }}-${{ matrix.target.arch }}/${{ matrix.target.bin }}"
+          fi
+
+          mv dist/${{ matrix.target.bin }} dist/nats-server-${{ matrix.target.os }}-${{ matrix.target.arch }}$([ "${{ matrix.target.os }}" = "windows" ] && echo ".exe" || echo "")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nats-server-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: dist/nats-server-*
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Package platform archives + Makeself .run
+  # Deploy scripts come from this repo (joyautomation/tentacle)
+  # ═══════════════════════════════════════════════════════════════════════════
+  package:
+    needs: [compile-deno, compile-deno-linux, compile-web, compile-go, download-nats]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package platform archives
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Cross-platform modules
+          CROSS_MODULES="tentacle-graphql tentacle-web tentacle-ethernetip tentacle-opcua tentacle-mqtt"
+          # Linux-only modules
+          LINUX_MODULES="tentacle-network tentacle-nftables"
+
+          for PLATFORM in linux-amd64 linux-arm64 darwin-arm64 windows-amd64; do
+            OS="${PLATFORM%-*}"
+            ARCH="${PLATFORM#*-}"
+            EXT=""
+            if [ "$OS" = "windows" ]; then EXT=".exe"; fi
+
+            DIR="tentacle-v${VERSION}-${PLATFORM}"
+            mkdir -p "${DIR}/bin" "${DIR}/deploy/systemd" "${DIR}/config"
+
+            # Copy cross-platform binaries
+            for MOD in $CROSS_MODULES; do
+              SRC="artifacts/${MOD}-${PLATFORM}/${MOD}-${PLATFORM}${EXT}"
+              if [ -f "$SRC" ]; then
+                cp "$SRC" "${DIR}/bin/${MOD}${EXT}"
+                chmod +x "${DIR}/bin/${MOD}${EXT}" 2>/dev/null || true
+              fi
+            done
+
+            # Copy NATS server
+            NATS_SRC="artifacts/nats-server-${PLATFORM}/nats-server-${PLATFORM}${EXT}"
+            if [ -f "$NATS_SRC" ]; then
+              cp "$NATS_SRC" "${DIR}/bin/nats-server${EXT}"
+              chmod +x "${DIR}/bin/nats-server${EXT}" 2>/dev/null || true
+            fi
+
+            # Copy Linux-only modules for Linux platforms
+            if [ "$OS" = "linux" ]; then
+              for MOD in $LINUX_MODULES; do
+                SRC="artifacts/${MOD}-${PLATFORM}/${MOD}-${PLATFORM}"
+                if [ -f "$SRC" ]; then
+                  cp "$SRC" "${DIR}/bin/${MOD}"
+                  chmod +x "${DIR}/bin/${MOD}"
+                fi
+              done
+            fi
+
+            # Copy deploy files (from this repo)
+            cp deploy/install.sh "${DIR}/deploy/"
+            chmod +x "${DIR}/deploy/install.sh"
+            sed -i "s/{{VERSION}}/${VERSION}/g" "${DIR}/deploy/install.sh"
+            cp deploy/docker-compose.yml "${DIR}/deploy/" 2>/dev/null || true
+            cp deploy/Dockerfile.* "${DIR}/deploy/" 2>/dev/null || true
+            cp config/tentacle.env.example "${DIR}/config/"
+
+            if [ "$OS" = "linux" ]; then
+              cp deploy/systemd/*.service "${DIR}/deploy/systemd/"
+            fi
+
+            if [ "$OS" = "windows" ]; then
+              cp deploy/install.ps1 "${DIR}/deploy/" 2>/dev/null || true
+              sed -i "s/{{VERSION}}/${VERSION}/g" "${DIR}/deploy/install.ps1"
+            fi
+
+            # Create archive
+            if [ "$OS" = "windows" ]; then
+              zip -r "dist/tentacle-v${VERSION}-${PLATFORM}.zip" "${DIR}"
+            else
+              tar czf "dist/tentacle-v${VERSION}-${PLATFORM}.tar.gz" "${DIR}"
+            fi
+          done
+
+      - name: Build Makeself .run archives
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sudo apt-get install -y makeself
+
+          for ARCH in amd64 arm64; do
+            PLATFORM="linux-${ARCH}"
+            SRC_DIR="tentacle-v${VERSION}-${PLATFORM}"
+
+            if [ -d "$SRC_DIR" ]; then
+              makeself --gzip --sha256 \
+                "$SRC_DIR" \
+                "dist/tentacle-v${VERSION}-${PLATFORM}.run" \
+                "Tentacle v${VERSION} Installer (Linux ${ARCH})" \
+                ./deploy/install.sh --bundled
+            fi
+          done
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-archives
+          path: dist/
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Create GitHub Release
+  # ═══════════════════════════════════════════════════════════════════════════
+  release:
+    needs: [package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@v4
+        with:
+          name: release-archives
+          path: dist/
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Tentacle v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/tentacle-v*.tar.gz
+            dist/tentacle-v*.zip
+            dist/tentacle-v*.run
+            dist/SHA256SUMS

@@ -1,0 +1,19 @@
+[Unit]
+Description=Tentacle OPC UA Client
+Documentation=https://github.com/joyautomation/tentacle
+After=tentacle-nats.service
+Requires=tentacle-nats.service
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/tentacle/config/tentacle.env
+Environment=OPCUA_PKI_DIR=/opt/tentacle/data/opcua/pki
+ExecStart=/opt/tentacle/bin/tentacle-opcua
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tentacle-opcua
+
+[Install]
+WantedBy=multi-user.target

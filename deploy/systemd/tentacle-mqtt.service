@@ -1,0 +1,18 @@
+[Unit]
+Description=Tentacle MQTT Sparkplug B Bridge
+Documentation=https://github.com/joyautomation/tentacle
+After=tentacle-nats.service
+Requires=tentacle-nats.service
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/tentacle/config/tentacle.env
+ExecStart=/opt/tentacle/bin/tentacle-mqtt
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tentacle-mqtt
+
+[Install]
+WantedBy=multi-user.target
