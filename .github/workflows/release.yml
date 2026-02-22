@@ -12,43 +12,36 @@ on:
 
 env:
   NATS_VERSION: "2.10.24"
+  DENO_VERSION: "2.3.3"
   GH_ORG: joyautomation
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
-  # Download pre-built binaries from each module's latest GitHub release
-  # Each module repo runs its own compile workflow on tag push
+  # Download Deno runtime binaries (one per platform, shared by all services)
   # ═══════════════════════════════════════════════════════════════════════════
-  download-modules:
+  download-deno:
     strategy:
       matrix:
-        module:
-          - { repo: tentacle-graphql,    name: tentacle-graphql,    platforms: "linux-amd64 linux-arm64 darwin-arm64 windows-amd64" }
-          - { repo: tentacle-web,        name: tentacle-web,        platforms: "linux-amd64 linux-arm64 darwin-arm64 windows-amd64" }
-          - { repo: tentacle-ethernetip, name: tentacle-ethernetip, platforms: "linux-amd64 linux-arm64 darwin-arm64 windows-amd64" }
-          - { repo: tentacle-mqtt,       name: tentacle-mqtt,       platforms: "linux-amd64 linux-arm64 darwin-arm64 windows-amd64" }
-          - { repo: tentacle-opcua-go,   name: tentacle-opcua,      platforms: "linux-amd64 linux-arm64 darwin-arm64 windows-amd64" }
-          - { repo: tentacle-network,    name: tentacle-network,    platforms: "linux-amd64 linux-arm64" }
-          - { repo: tentacle-nftables,   name: tentacle-nftables,   platforms: "linux-amd64 linux-arm64" }
+        target:
+          - { deno_target: x86_64-unknown-linux-gnu,  platform: linux-amd64,   ext: "" }
+          - { deno_target: aarch64-unknown-linux-gnu, platform: linux-arm64,   ext: "" }
+          - { deno_target: aarch64-apple-darwin,      platform: darwin-arm64,  ext: "" }
+          - { deno_target: x86_64-pc-windows-msvc,    platform: windows-amd64, ext: ".exe" }
     runs-on: ubuntu-latest
     steps:
-      - name: Download ${{ matrix.module.name }} binaries
+      - name: Download Deno v${{ env.DENO_VERSION }} for ${{ matrix.target.platform }}
         run: |
-          mkdir -p artifacts
-          for PLATFORM in ${{ matrix.module.platforms }}; do
-            EXT=""
-            if [[ "$PLATFORM" == windows-* ]]; then EXT=".exe"; fi
-            FILENAME="${{ matrix.module.name }}-${PLATFORM}${EXT}"
-            echo "Downloading ${FILENAME}..."
-            curl -fSL \
-              "https://github.com/${{ env.GH_ORG }}/${{ matrix.module.repo }}/releases/latest/download/${FILENAME}" \
-              -o "artifacts/${FILENAME}" || echo "WARNING: ${FILENAME} not found in latest release"
-          done
+          mkdir -p dist
+          curl -fSL \
+            "https://dl.deno.land/release/v${DENO_VERSION}/deno-${{ matrix.target.deno_target }}.zip" \
+            -o /tmp/deno.zip
+          unzip -j /tmp/deno.zip "deno${{ matrix.target.ext }}" -d /tmp/
+          mv "/tmp/deno${{ matrix.target.ext }}" "dist/deno-${{ matrix.target.platform }}${{ matrix.target.ext }}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.module.name }}
-          path: artifacts/*
+          name: deno-${{ matrix.target.platform }}
+          path: dist/deno-*
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Download NATS server binaries
@@ -85,19 +78,81 @@ jobs:
           path: dist/nats-server-*
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # Download Deno service source/build tarballs from module releases
+  # ═══════════════════════════════════════════════════════════════════════════
+  download-deno-services:
+    strategy:
+      matrix:
+        module:
+          - { repo: tentacle-graphql,    artifact: tentacle-graphql-src.tar.gz }
+          - { repo: tentacle-ethernetip, artifact: tentacle-ethernetip-src.tar.gz }
+          - { repo: tentacle-mqtt,       artifact: tentacle-mqtt-src.tar.gz }
+          - { repo: tentacle-network,    artifact: tentacle-network-src.tar.gz }
+          - { repo: tentacle-nftables,   artifact: tentacle-nftables-src.tar.gz }
+          - { repo: tentacle-web,        artifact: tentacle-web-build.tar.gz }
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download ${{ matrix.module.repo }}
+        run: |
+          mkdir -p artifacts
+          curl -fSL \
+            "https://github.com/${{ env.GH_ORG }}/${{ matrix.module.repo }}/releases/latest/download/${{ matrix.module.artifact }}" \
+            -o "artifacts/${{ matrix.module.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.module.repo }}-src
+          path: artifacts/*
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Download tentacle-opcua-go compiled binary (Go, no runtime overhead)
+  # ═══════════════════════════════════════════════════════════════════════════
+  download-opcua:
+    strategy:
+      matrix:
+        target:
+          - { platform: linux-amd64,   ext: "" }
+          - { platform: linux-arm64,   ext: "" }
+          - { platform: darwin-arm64,  ext: "" }
+          - { platform: windows-amd64, ext: ".exe" }
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download tentacle-opcua for ${{ matrix.target.platform }}
+        run: |
+          mkdir -p artifacts
+          FILENAME="tentacle-opcua-${{ matrix.target.platform }}${{ matrix.target.ext }}"
+          curl -fSL \
+            "https://github.com/${{ env.GH_ORG }}/tentacle-opcua-go/releases/latest/download/${FILENAME}" \
+            -o "artifacts/${FILENAME}" || echo "WARNING: ${FILENAME} not found"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tentacle-opcua-${{ matrix.target.platform }}
+          path: artifacts/*
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # Package platform archives + Makeself .run
-  # Deploy scripts come from this repo (joyautomation/tentacle)
   # ═══════════════════════════════════════════════════════════════════════════
   package:
-    needs: [download-modules, download-nats]
+    needs: [download-deno, download-nats, download-deno-services, download-opcua]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
+
+      - name: Checkout tentacle-nats-schema
+        uses: actions/checkout@v4
+        with:
+          repository: joyautomation/tentacle-nats-schema
+          path: tentacle-nats-schema
 
       - name: Determine version
         id: version
@@ -108,12 +163,52 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Extract service sources and pre-cache Deno dependencies
+        run: |
+          mkdir -p services
+
+          # Extract Deno service source tarballs
+          for svc in graphql ethernetip mqtt network nftables; do
+            TARBALL="artifacts/tentacle-${svc}-src/tentacle-${svc}-src.tar.gz"
+            if [ -f "$TARBALL" ]; then
+              tar xzf "$TARBALL" -C services/
+              echo "Extracted tentacle-${svc}"
+            fi
+          done
+
+          # Extract web build/ dir into services/tentacle-web/
+          WEB_TARBALL="artifacts/tentacle-web-src/tentacle-web-build.tar.gz"
+          if [ -f "$WEB_TARBALL" ]; then
+            mkdir -p services/tentacle-web
+            tar xzf "$WEB_TARBALL" -C services/tentacle-web/
+            echo "Extracted tentacle-web"
+          fi
+
+          # Shared nats-schema
+          cp -r tentacle-nats-schema services/tentacle-nats-schema
+          rm -rf services/tentacle-nats-schema/.git
+
+          # Pre-cache all Deno service dependencies for air-gapped installs.
+          # The runner is linux-amd64; source files are platform-independent.
+          # On other architectures, bytecode recompiles locally (no internet needed).
+          export DENO_DIR="$(pwd)/deno-cache"
+          mkdir -p "$DENO_DIR"
+          for svc in graphql ethernetip mqtt network nftables; do
+            if [ -f "services/tentacle-${svc}/main.ts" ]; then
+              echo "Caching deps for tentacle-${svc}..."
+              (cd "services/tentacle-${svc}" && deno cache main.ts 2>&1) || \
+                echo "WARNING: cache failed for tentacle-${svc}"
+            fi
+          done
+          if [ -f "services/tentacle-web/build/index.js" ]; then
+            echo "Caching deps for tentacle-web..."
+            (cd services/tentacle-web && deno cache build/index.js 2>&1) || \
+              echo "WARNING: cache failed for tentacle-web"
+          fi
+
       - name: Package platform archives
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          CROSS_MODULES="tentacle-graphql tentacle-web tentacle-ethernetip tentacle-opcua tentacle-mqtt"
-          LINUX_MODULES="tentacle-network tentacle-nftables"
-
           mkdir -p dist
 
           for PLATFORM in linux-amd64 linux-arm64 darwin-arm64 windows-amd64; do
@@ -123,36 +218,46 @@ jobs:
             if [ "$OS" = "windows" ]; then EXT=".exe"; fi
 
             DIR="tentacle-v${VERSION}-${PLATFORM}"
-            mkdir -p "${DIR}/bin" "${DIR}/deploy/systemd" "${DIR}/config"
+            mkdir -p "${DIR}/bin" "${DIR}/services" "${DIR}/deploy/systemd" "${DIR}/config"
 
-            # Copy cross-platform module binaries
-            for MOD in $CROSS_MODULES; do
-              SRC="artifacts/${MOD}/${MOD}-${PLATFORM}${EXT}"
-              if [ -f "$SRC" ]; then
-                cp "$SRC" "${DIR}/bin/${MOD}${EXT}"
-                chmod +x "${DIR}/bin/${MOD}${EXT}" 2>/dev/null || true
-              fi
-            done
+            # Deno runtime binary
+            DENO_SRC="artifacts/deno-${PLATFORM}/deno-${PLATFORM}${EXT}"
+            if [ -f "$DENO_SRC" ]; then
+              cp "$DENO_SRC" "${DIR}/bin/deno${EXT}"
+              chmod +x "${DIR}/bin/deno${EXT}" 2>/dev/null || true
+            fi
 
-            # Copy NATS server
+            # NATS server
             NATS_SRC="artifacts/nats-server-${PLATFORM}/nats-server-${PLATFORM}${EXT}"
             if [ -f "$NATS_SRC" ]; then
               cp "$NATS_SRC" "${DIR}/bin/nats-server${EXT}"
               chmod +x "${DIR}/bin/nats-server${EXT}" 2>/dev/null || true
             fi
 
-            # Copy Linux-only modules
-            if [ "$OS" = "linux" ]; then
-              for MOD in $LINUX_MODULES; do
-                SRC="artifacts/${MOD}/${MOD}-${PLATFORM}"
-                if [ -f "$SRC" ]; then
-                  cp "$SRC" "${DIR}/bin/${MOD}"
-                  chmod +x "${DIR}/bin/${MOD}"
-                fi
-              done
+            # OPC UA Go binary
+            OPCUA_SRC="artifacts/tentacle-opcua-${PLATFORM}/tentacle-opcua-${PLATFORM}${EXT}"
+            if [ -f "$OPCUA_SRC" ]; then
+              cp "$OPCUA_SRC" "${DIR}/bin/tentacle-opcua${EXT}"
+              chmod +x "${DIR}/bin/tentacle-opcua${EXT}" 2>/dev/null || true
             fi
 
-            # Copy deploy files from this repo
+            # Deno service sources + nats-schema (platform-independent)
+            for svc in graphql ethernetip mqtt nftables; do
+              [ -d "services/tentacle-${svc}" ] && cp -r "services/tentacle-${svc}" "${DIR}/services/"
+            done
+            # network and nftables are Linux-only
+            if [ "$OS" = "linux" ]; then
+              for svc in network nftables; do
+                [ -d "services/tentacle-${svc}" ] && cp -r "services/tentacle-${svc}" "${DIR}/services/"
+              done
+            fi
+            [ -d "services/tentacle-web" ]         && cp -r "services/tentacle-web"         "${DIR}/services/"
+            [ -d "services/tentacle-nats-schema" ] && cp -r "services/tentacle-nats-schema" "${DIR}/services/"
+
+            # Pre-cached Deno dependency cache
+            [ -d "deno-cache" ] && cp -r deno-cache "${DIR}/services/deno-cache"
+
+            # Deploy files from this repo
             cp deploy/install.sh "${DIR}/deploy/"
             chmod +x "${DIR}/deploy/install.sh"
             sed -i "s/{{VERSION}}/${VERSION}/g" "${DIR}/deploy/install.sh"

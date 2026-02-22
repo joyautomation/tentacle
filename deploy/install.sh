@@ -10,6 +10,7 @@ REPO="joyautomation/tentacle"
 INSTALL_DIR="/opt/tentacle"
 CONFIG_DIR="${INSTALL_DIR}/config"
 DATA_DIR="${INSTALL_DIR}/data"
+SERVICES_DIR="${INSTALL_DIR}/services"
 
 # Colors
 RED='\033[0;31m'
@@ -30,6 +31,17 @@ PLATFORM=""
 DEPLOY_METHOD=""
 SELECTED_MODULES=()
 LINUX_SYSTEM_MODULES=()
+
+# Config values (populated by configure())
+CFG_NATS_SERVERS=""
+CFG_GRAPHQL_PORT=""
+CFG_WEB_PORT=""
+CFG_MQTT_BROKER=""
+CFG_MQTT_CLIENT=""
+CFG_MQTT_GROUP=""
+CFG_MQTT_NODE=""
+CFG_MQTT_USER=""
+CFG_MQTT_PASS=""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Utilities
@@ -53,6 +65,14 @@ confirm() {
   [[ "${answer,,}" == "y" ]]
 }
 
+has_module() {
+  local needle="$1"
+  for m in "${SELECTED_MODULES[@]}" "${LINUX_SYSTEM_MODULES[@]}"; do
+    [[ "$m" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Parse arguments
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -70,6 +90,7 @@ while [[ $# -gt 0 ]]; do
       INSTALL_DIR="$2"
       CONFIG_DIR="${INSTALL_DIR}/config"
       DATA_DIR="${INSTALL_DIR}/data"
+      SERVICES_DIR="${INSTALL_DIR}/services"
       shift 2 ;;
     --help|-h)
       echo "Usage: install.sh [OPTIONS]"
@@ -179,12 +200,9 @@ select_modules() {
   # Process selection
   local selected=()
   if [ -z "$selection" ]; then
-    # Use defaults
     for entry in "${all_modules[@]}"; do
       IFS=':' read -r name _ default <<< "$entry"
-      if [ "$default" = "true" ]; then
-        selected+=("$name")
-      fi
+      if [ "$default" = "true" ]; then selected+=("$name"); fi
     done
   elif [ "$selection" = "a" ] || [ "$selection" = "A" ]; then
     for entry in "${all_modules[@]}"; do
@@ -192,10 +210,9 @@ select_modules() {
       selected+=("$name")
     done
   else
-    # Start with defaults, toggle specified
     local defaults=()
     for entry in "${all_modules[@]}"; do
-      IFS=':' read -r name _ default <<< "$entry"
+      IFS=':' read -r _ _ default <<< "$entry"
       defaults+=("$default")
     done
 
@@ -204,19 +221,13 @@ select_modules() {
       num="$(echo "$num" | tr -d ' ')"
       if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le "${#all_modules[@]}" ]; then
         local idx=$((num - 1))
-        if [ "${defaults[$idx]}" = "true" ]; then
-          defaults[$idx]="false"
-        else
-          defaults[$idx]="true"
-        fi
+        if [ "${defaults[$idx]}" = "true" ]; then defaults[$idx]="false"; else defaults[$idx]="true"; fi
       fi
     done
 
     for idx in "${!all_modules[@]}"; do
       IFS=':' read -r name _ _ <<< "${all_modules[$idx]}"
-      if [ "${defaults[$idx]}" = "true" ]; then
-        selected+=("$name")
-      fi
+      if [ "${defaults[$idx]}" = "true" ]; then selected+=("$name"); fi
     done
   fi
 
@@ -302,48 +313,84 @@ configure() {
     fi
   fi
 
-  local nats_servers graphql_port web_port
+  # ── Core ──────────────────────────────────────────────────────────────────
+  read -r -p "  NATS server address [nats://localhost:4222]: " CFG_NATS_SERVERS
+  CFG_NATS_SERVERS="${CFG_NATS_SERVERS:-nats://localhost:4222}"
 
-  read -r -p "  NATS server address [nats://localhost:4222]: " nats_servers
-  nats_servers="${nats_servers:-nats://localhost:4222}"
+  read -r -p "  GraphQL API port [4000]: " CFG_GRAPHQL_PORT
+  CFG_GRAPHQL_PORT="${CFG_GRAPHQL_PORT:-4000}"
 
-  read -r -p "  GraphQL API port [4000]: " graphql_port
-  graphql_port="${graphql_port:-4000}"
+  read -r -p "  Web dashboard port [3012]: " CFG_WEB_PORT
+  CFG_WEB_PORT="${CFG_WEB_PORT:-3012}"
 
-  read -r -p "  Web dashboard port [3012]: " web_port
-  web_port="${web_port:-3012}"
-
-  local graphql_url="http://localhost:${graphql_port}/graphql"
+  local graphql_url="http://localhost:${CFG_GRAPHQL_PORT}/graphql"
   if [ "$DEPLOY_METHOD" = "docker" ]; then
-    graphql_url="http://graphql:${graphql_port}/graphql"
+    graphql_url="http://graphql:${CFG_GRAPHQL_PORT}/graphql"
   fi
 
-  local mode="$DEPLOY_METHOD"
+  # ── MQTT (only if selected) ────────────────────────────────────────────────
+  if has_module "tentacle-mqtt"; then
+    echo ""
+    echo -e "  ${BOLD}MQTT / Sparkplug B Configuration${NC}"
+    echo ""
 
+    read -r -p "  Broker URL [mqtt://localhost:1883]: " CFG_MQTT_BROKER
+    CFG_MQTT_BROKER="${CFG_MQTT_BROKER:-mqtt://localhost:1883}"
+
+    read -r -p "  Group ID [TentacleGroup]: " CFG_MQTT_GROUP
+    CFG_MQTT_GROUP="${CFG_MQTT_GROUP:-TentacleGroup}"
+
+    read -r -p "  Edge node ID [EdgeNode1]: " CFG_MQTT_NODE
+    CFG_MQTT_NODE="${CFG_MQTT_NODE:-EdgeNode1}"
+
+    read -r -p "  Client ID [tentacle-mqtt]: " CFG_MQTT_CLIENT
+    CFG_MQTT_CLIENT="${CFG_MQTT_CLIENT:-tentacle-mqtt}"
+
+    read -r -p "  Username (leave blank if none): " CFG_MQTT_USER
+    if [ -n "$CFG_MQTT_USER" ]; then
+      read -r -s -p "  Password: " CFG_MQTT_PASS
+      echo ""
+    fi
+  fi
+
+  # ── Write env file ─────────────────────────────────────────────────────────
   mkdir -p "${CONFIG_DIR}"
   cat > "${CONFIG_DIR}/tentacle.env" <<ENVEOF
 # Tentacle Platform Configuration
 # Generated by install.sh on $(date -Iseconds)
 
 # NATS
-NATS_SERVERS=${nats_servers}
+NATS_SERVERS=${CFG_NATS_SERVERS}
+
+# Deno dependency cache (pre-populated by installer for air-gapped use)
+DENO_DIR=${SERVICES_DIR}/deno-cache
 
 # GraphQL API
-GRAPHQL_PORT=${graphql_port}
+GRAPHQL_PORT=${CFG_GRAPHQL_PORT}
 GRAPHQL_HOSTNAME=0.0.0.0
-TENTACLE_MODE=${mode}
+TENTACLE_MODE=${DEPLOY_METHOD}
 
 # Web Dashboard
 GRAPHQL_URL=${graphql_url}
-PORT=${web_port}
+PORT=${CFG_WEB_PORT}
+ENVEOF
 
-# MQTT (uncomment and configure if using tentacle-mqtt)
-# MQTT_BROKER_URL=mqtt://localhost:1883
-# MQTT_CLIENT_ID=tentacle-mqtt
-# MQTT_GROUP_ID=TentacleGroup
-# MQTT_EDGE_NODE=EdgeNode1
+  if has_module "tentacle-mqtt"; then
+    cat >> "${CONFIG_DIR}/tentacle.env" <<ENVEOF
 
-# OPC UA
+# MQTT Sparkplug B Bridge
+MQTT_BROKER_URL=${CFG_MQTT_BROKER}
+MQTT_CLIENT_ID=${CFG_MQTT_CLIENT}
+MQTT_GROUP_ID=${CFG_MQTT_GROUP}
+MQTT_EDGE_NODE=${CFG_MQTT_NODE}
+ENVEOF
+    [ -n "$CFG_MQTT_USER" ] && echo "MQTT_USERNAME=${CFG_MQTT_USER}" >> "${CONFIG_DIR}/tentacle.env"
+    [ -n "$CFG_MQTT_PASS" ] && echo "MQTT_PASSWORD=${CFG_MQTT_PASS}" >> "${CONFIG_DIR}/tentacle.env"
+  fi
+
+  cat >> "${CONFIG_DIR}/tentacle.env" <<ENVEOF
+
+# OPC UA Client
 # OPCUA_PKI_DIR=${DATA_DIR}/opcua/pki
 # OPCUA_AUTO_ACCEPT_CERTS=true
 ENVEOF
@@ -352,35 +399,42 @@ ENVEOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Binary installation
+# Installation
 # ═══════════════════════════════════════════════════════════════════════════════
 
-install_binaries() {
+# Map module name → service type: "deno" or "go"
+module_type() {
+  case "$1" in
+    tentacle-opcua) echo "go" ;;
+    *) echo "deno" ;;
+  esac
+}
+
+# For Deno services, the service directory name matches the module name.
+# For the web service, the entry point is build/index.js instead of main.ts.
+service_entrypoint() {
+  case "$1" in
+    tentacle-web) echo "build/index.js" ;;
+    *) echo "main.ts" ;;
+  esac
+}
+
+install_files() {
   echo ""
-  step "Installing Binaries"
+  step "Installing Files"
   echo ""
 
-  mkdir -p "${INSTALL_DIR}/bin" "${DATA_DIR}/nats" "${DATA_DIR}/opcua/pki"
+  mkdir -p "${INSTALL_DIR}/bin" "${SERVICES_DIR}" \
+           "${DATA_DIR}/nats" "${DATA_DIR}/opcua/pki"
 
-  local all_modules=("nats-server" "${SELECTED_MODULES[@]}" "${LINUX_SYSTEM_MODULES[@]}")
-
+  local src_dir
   if [ "$BUNDLED" = "true" ]; then
-    info "Installing from bundled archive..."
-    for mod in "${all_modules[@]}"; do
-      local src="${BUNDLED_DIR}/bin/${mod}"
-      if [ -f "$src" ]; then
-        cp "$src" "${INSTALL_DIR}/bin/${mod}"
-        chmod +x "${INSTALL_DIR}/bin/${mod}"
-        info "  Installed ${mod}"
-      else
-        warn "  Binary not found: ${mod}"
-      fi
-    done
+    src_dir="${BUNDLED_DIR}"
   else
     info "Downloading Tentacle v${VERSION} for ${PLATFORM}..."
-    local url="https://github.com/${REPO}/releases/download/v${VERSION}/tentacle-v${VERSION}-${PLATFORM}.tar.gz"
     local tmpdir
     tmpdir="$(mktemp -d)"
+    local url="https://github.com/${REPO}/releases/download/v${VERSION}/tentacle-v${VERSION}-${PLATFORM}.tar.gz"
 
     if command -v curl &>/dev/null; then
       curl -fSL --progress-bar "$url" -o "${tmpdir}/release.tar.gz"
@@ -389,18 +443,59 @@ install_binaries() {
     fi
 
     tar xzf "${tmpdir}/release.tar.gz" -C "${tmpdir}" --strip-components=1
+    src_dir="${tmpdir}"
+  fi
 
-    for mod in "${all_modules[@]}"; do
-      local src="${tmpdir}/bin/${mod}"
-      if [ -f "$src" ]; then
-        cp "$src" "${INSTALL_DIR}/bin/${mod}"
+  # ── Deno runtime ──────────────────────────────────────────────────────────
+  if [ -f "${src_dir}/bin/deno" ]; then
+    cp "${src_dir}/bin/deno" "${INSTALL_DIR}/bin/deno"
+    chmod +x "${INSTALL_DIR}/bin/deno"
+    info "  Installed deno runtime"
+  fi
+
+  # ── NATS server ──────────────────────────────────────────────────────────
+  if [ -f "${src_dir}/bin/nats-server" ]; then
+    cp "${src_dir}/bin/nats-server" "${INSTALL_DIR}/bin/nats-server"
+    chmod +x "${INSTALL_DIR}/bin/nats-server"
+    info "  Installed nats-server"
+  fi
+
+  # ── Shared Deno dependency cache ──────────────────────────────────────────
+  if [ -d "${src_dir}/services/deno-cache" ]; then
+    cp -r "${src_dir}/services/deno-cache" "${SERVICES_DIR}/deno-cache"
+    info "  Installed Deno dependency cache"
+  fi
+
+  # ── Shared nats-schema ────────────────────────────────────────────────────
+  if [ -d "${src_dir}/services/tentacle-nats-schema" ]; then
+    cp -r "${src_dir}/services/tentacle-nats-schema" "${SERVICES_DIR}/tentacle-nats-schema"
+    info "  Installed tentacle-nats-schema"
+  fi
+
+  # ── Per-module installation ───────────────────────────────────────────────
+  local all_mods=("${SELECTED_MODULES[@]}" "${LINUX_SYSTEM_MODULES[@]}")
+  for mod in "${all_mods[@]}"; do
+    if [ "$(module_type "$mod")" = "go" ]; then
+      # Go binary: copy to bin/
+      if [ -f "${src_dir}/bin/${mod}" ]; then
+        cp "${src_dir}/bin/${mod}" "${INSTALL_DIR}/bin/${mod}"
         chmod +x "${INSTALL_DIR}/bin/${mod}"
-        info "  Installed ${mod}"
+        info "  Installed ${mod} (binary)"
       else
-        warn "  Binary not found in release: ${mod}"
+        warn "  Binary not found: ${mod}"
       fi
-    done
+    else
+      # Deno service: copy source directory to services/
+      if [ -d "${src_dir}/services/${mod}" ]; then
+        cp -r "${src_dir}/services/${mod}" "${SERVICES_DIR}/${mod}"
+        info "  Installed ${mod} (source)"
+      else
+        warn "  Service source not found: ${mod}"
+      fi
+    fi
+  done
 
+  if [ "$BUNDLED" = "false" ] && [ -n "${tmpdir:-}" ]; then
     rm -rf "${tmpdir}"
   fi
 }
@@ -441,15 +536,11 @@ install_systemd() {
 
   systemctl daemon-reload
 
-  # Enable and start NATS first
   systemctl enable tentacle-nats
   systemctl start tentacle-nats
   info "  Started tentacle-nats"
-
-  # Wait for NATS to be ready
   sleep 2
 
-  # Enable and start other services
   for mod in "${services[@]}"; do
     systemctl enable "${mod}"
     systemctl start "${mod}"
@@ -467,9 +558,8 @@ install_docker() {
   echo ""
 
   local docker_dir="${INSTALL_DIR}/docker"
-  mkdir -p "${docker_dir}/bin"
+  mkdir -p "${docker_dir}"
 
-  # Copy docker-compose and Dockerfiles
   local source_dir
   if [ "$BUNDLED" = "true" ]; then
     source_dir="${BUNDLED_DIR}/deploy"
@@ -482,28 +572,6 @@ install_docker() {
     [ -f "$f" ] && cp "$f" "${docker_dir}/"
   done
 
-  # Copy binaries into docker build context
-  for mod in "${SELECTED_MODULES[@]}"; do
-    if [ -f "${INSTALL_DIR}/bin/${mod}" ]; then
-      cp "${INSTALL_DIR}/bin/${mod}" "${docker_dir}/bin/"
-    fi
-  done
-
-  # Comment out unselected services in docker-compose.yml
-  local all_docker_services=("graphql" "web" "ethernetip" "opcua" "mqtt")
-  for svc in "${all_docker_services[@]}"; do
-    local mod="tentacle-${svc}"
-    local found=false
-    for sel in "${SELECTED_MODULES[@]}"; do
-      if [ "$sel" = "$mod" ]; then found=true; break; fi
-    done
-    if [ "$found" = "false" ]; then
-      # Remove service block from compose file (simple approach: leave it, just don't build)
-      info "  Skipping ${svc} (not selected)"
-    fi
-  done
-
-  # Copy env file for docker
   cp "${CONFIG_DIR}/tentacle.env" "${docker_dir}/.env" 2>/dev/null || true
 
   info "Docker Compose files installed in ${docker_dir}"
@@ -527,23 +595,19 @@ install_binary_only() {
   step "Binary-only installation"
   echo ""
 
-  # Create a convenience start script
   local start_script="${INSTALL_DIR}/start.sh"
-  cat > "${start_script}" <<'STARTEOF'
+  cat > "${start_script}" << 'STARTEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Source environment
 if [ -f "${DIR}/config/tentacle.env" ]; then
-  set -a
-  source "${DIR}/config/tentacle.env"
-  set +a
+  set -a; source "${DIR}/config/tentacle.env"; set +a
 fi
 
 echo "Starting Tentacle services..."
 
-# Start NATS
 "${DIR}/bin/nats-server" -js -sd "${DIR}/data/nats" &
 NATS_PID=$!
 echo "  NATS server started (PID: $NATS_PID)"
@@ -553,22 +617,31 @@ PIDS=($NATS_PID)
 
 STARTEOF
 
-  for mod in "${SELECTED_MODULES[@]}"; do
-    cat >> "${start_script}" <<SVCEOF
-# Start ${mod}
+  local all_mods=("${SELECTED_MODULES[@]}")
+  for mod in "${all_mods[@]}"; do
+    if [ "$(module_type "$mod")" = "go" ]; then
+      cat >> "${start_script}" << SVCEOF
 "${INSTALL_DIR}/bin/${mod}" &
 PIDS+=(\$!)
 echo "  ${mod} started (PID: \${PIDS[-1]})"
 
 SVCEOF
+    else
+      local ep
+      ep="$(service_entrypoint "$mod")"
+      cat >> "${start_script}" << SVCEOF
+"${INSTALL_DIR}/bin/deno" run --allow-all "${SERVICES_DIR}/${mod}/${ep}" &
+PIDS+=(\$!)
+echo "  ${mod} started (PID: \${PIDS[-1]})"
+
+SVCEOF
+    fi
   done
 
-  cat >> "${start_script}" <<'ENDEOF'
+  cat >> "${start_script}" << 'ENDEOF'
 echo ""
-echo "All services started."
+echo "All services started. Press Ctrl+C to stop."
 echo "Web Dashboard: http://localhost:${PORT:-3012}"
-echo ""
-echo "Press Ctrl+C to stop all services."
 
 trap 'echo "Stopping..."; kill "${PIDS[@]}" 2>/dev/null; wait; echo "Stopped."' INT TERM
 wait
@@ -587,10 +660,8 @@ verify_install() {
   echo ""
   step "Verifying Installation"
   echo ""
-
   sleep 3
 
-  # Check NATS
   if command -v curl &>/dev/null; then
     if curl -sf http://localhost:8222/healthz >/dev/null 2>&1; then
       info "NATS server: ${GREEN}running${NC}"
@@ -599,22 +670,22 @@ verify_install() {
     fi
   fi
 
-  # Check GraphQL
-  local graphql_port
-  graphql_port="$(grep -oP 'GRAPHQL_PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 4000)"
-  if curl -sf "http://localhost:${graphql_port}/graphql" -H "Content-Type: application/json" -d '{"query":"{__typename}"}' >/dev/null 2>&1; then
-    info "GraphQL API: ${GREEN}running${NC} on port ${graphql_port}"
+  local gport
+  gport="$(grep -oP 'GRAPHQL_PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 4000)"
+  if curl -sf "http://localhost:${gport}/graphql" \
+      -H "Content-Type: application/json" \
+      -d '{"query":"{__typename}"}' >/dev/null 2>&1; then
+    info "GraphQL API: ${GREEN}running${NC} on :${gport}"
   else
-    warn "GraphQL API: not responding on :${graphql_port} (may still be starting)"
+    warn "GraphQL API: not responding on :${gport} (may still be starting)"
   fi
 
-  # Check Web
-  local web_port
-  web_port="$(grep -oP 'PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 3012)"
-  if curl -sf "http://localhost:${web_port}" >/dev/null 2>&1; then
-    info "Web Dashboard: ${GREEN}running${NC} on port ${web_port}"
+  local wport
+  wport="$(grep -oP 'PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 3012)"
+  if curl -sf "http://localhost:${wport}" >/dev/null 2>&1; then
+    info "Web Dashboard: ${GREEN}running${NC} on :${wport}"
   else
-    warn "Web Dashboard: not responding on :${web_port} (may still be starting)"
+    warn "Web Dashboard: not responding on :${wport} (may still be starting)"
   fi
 }
 
@@ -623,10 +694,10 @@ verify_install() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 print_summary() {
-  local web_port
-  web_port="$(grep -oP 'PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 3012)"
-  local graphql_port
-  graphql_port="$(grep -oP 'GRAPHQL_PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 4000)"
+  local wport
+  wport="$(grep -oP 'PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 3012)"
+  local gport
+  gport="$(grep -oP 'GRAPHQL_PORT=\K[0-9]+' "${CONFIG_DIR}/tentacle.env" 2>/dev/null || echo 4000)"
 
   echo ""
   echo -e "${GREEN}${BOLD}"
@@ -640,9 +711,11 @@ print_summary() {
   echo -e "  ${BOLD}Deploy method:${NC}    ${DEPLOY_METHOD}"
   echo ""
   echo -e "  ${BOLD}Services:${NC}"
-  echo -e "    Web Dashboard:  ${CYAN}http://localhost:${web_port}${NC}"
-  echo -e "    GraphQL API:    ${CYAN}http://localhost:${graphql_port}/graphql${NC}"
+  echo -e "    Web Dashboard:  ${CYAN}http://localhost:${wport}${NC}"
+  echo -e "    GraphQL API:    ${CYAN}http://localhost:${gport}/graphql${NC}"
   echo -e "    NATS:           ${CYAN}nats://localhost:4222${NC}"
+  echo ""
+  echo -e "  ${BOLD}Upgrade Deno runtime:${NC}  ${INSTALL_DIR}/bin/deno upgrade"
   echo ""
 
   case "$DEPLOY_METHOD" in
@@ -685,7 +758,7 @@ main() {
   select_modules
   select_deployment
   configure
-  install_binaries
+  install_files
 
   case "$DEPLOY_METHOD" in
     systemd)
@@ -693,14 +766,12 @@ main() {
       ;;
     docker)
       install_docker
-      # Install Linux system modules via systemd alongside docker
       if [ ${#LINUX_SYSTEM_MODULES[@]} -gt 0 ]; then
         install_systemd "${LINUX_SYSTEM_MODULES[@]}"
       fi
       ;;
     binary)
       install_binary_only
-      # Install Linux system modules via systemd alongside binary mode
       if [ ${#LINUX_SYSTEM_MODULES[@]} -gt 0 ] && command -v systemctl &>/dev/null; then
         install_systemd "${LINUX_SYSTEM_MODULES[@]}"
       fi
