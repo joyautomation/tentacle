@@ -89,6 +89,7 @@ jobs:
           - { repo: tentacle-mqtt,       artifact: tentacle-mqtt-src.tar.gz }
           - { repo: tentacle-network,    artifact: tentacle-network-src.tar.gz }
           - { repo: tentacle-nftables,   artifact: tentacle-nftables-src.tar.gz }
+          - { repo: tentacle-modbus,     artifact: tentacle-modbus-src.tar.gz }
           - { repo: tentacle-web,        artifact: tentacle-web-build.tar.gz }
     runs-on: ubuntu-latest
     steps:
@@ -168,7 +169,7 @@ jobs:
           mkdir -p services
 
           # Extract Deno service source tarballs
-          for svc in graphql ethernetip mqtt network nftables; do
+          for svc in graphql ethernetip mqtt modbus network nftables; do
             TARBALL="artifacts/tentacle-${svc}-src/tentacle-${svc}-src.tar.gz"
             if [ -f "$TARBALL" ]; then
               tar xzf "$TARBALL" -C services/
@@ -193,7 +194,7 @@ jobs:
           # On other architectures, bytecode recompiles locally (no internet needed).
           export DENO_DIR="$(pwd)/deno-cache"
           mkdir -p "$DENO_DIR"
-          for svc in graphql ethernetip mqtt network nftables; do
+          for svc in graphql ethernetip mqtt modbus network nftables; do
             if [ -f "services/tentacle-${svc}/main.ts" ]; then
               echo "Caching deps for tentacle-${svc}..."
               (cd "services/tentacle-${svc}" && deno cache main.ts 2>&1) || \
@@ -242,7 +243,7 @@ jobs:
             fi
 
             # Deno service sources + nats-schema (platform-independent)
-            for svc in graphql ethernetip mqtt nftables; do
+            for svc in graphql ethernetip mqtt modbus nftables; do
               [ -d "services/tentacle-${svc}" ] && cp -r "services/tentacle-${svc}" "${DIR}/services/"
             done
             # network and nftables are Linux-only
