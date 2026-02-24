@@ -748,6 +748,170 @@ print_summary() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PLC Project Scaffolding
+# ═══════════════════════════════════════════════════════════════════════════════
+
+setup_plc_project() {
+  echo ""
+  read -r -p "  Would you like to create a PLC project? [y/N]: " plc_answer
+  case "$plc_answer" in
+    [yY]|[yY][eE][sS]) ;;
+    *) return ;;
+  esac
+
+  local default_name="my-plc"
+  read -r -p "  Project name [${default_name}]: " plc_name
+  plc_name="${plc_name:-$default_name}"
+
+  local nats_url="${CFG_NATS_SERVERS:-nats://localhost:4222}"
+  local projects_dir="${INSTALL_DIR}/projects"
+  local project_dir="${projects_dir}/${plc_name}"
+
+  if [ -d "$project_dir" ]; then
+    echo -e "  ${RED}Error: Directory ${project_dir} already exists.${NC}"
+    return
+  fi
+
+  mkdir -p "$project_dir"
+
+  # deno.json
+  cat > "${project_dir}/deno.json" << 'DENOEOF'
+{
+  "tasks": {
+    "dev": "deno run --env-file=.env --allow-all --watch main.ts",
+    "start": "deno run --env-file=.env --allow-all main.ts"
+  },
+  "imports": {
+    "@tentacle/plc": "jsr:@joyautomation/tentacle-plc@^0.0.5"
+  }
+}
+DENOEOF
+
+  # .env
+  cat > "${project_dir}/.env" << ENVEOF
+NATS_SERVERS=${nats_url}
+ENVEOF
+
+  # .gitignore
+  cat > "${project_dir}/.gitignore" << 'GIEOF'
+.env
+*.log
+GIEOF
+
+  # main.ts
+  cat > "${project_dir}/main.ts" << MAINEOF
+/**
+ * ${plc_name} — Tentacle PLC project
+ *
+ * Define your variables, tasks, and control logic below.
+ * Run with: deno task dev
+ */
+
+import {
+  createPlc,
+  createPlcLogger,
+  type PlcVariableBooleanConfig,
+  type PlcVariableNumberConfig,
+  type PlcVariablesRuntime,
+} from "@tentacle/plc";
+
+// ─── To add device sources, import the helpers: ─────────────────────────────
+// import { eipTag } from "@tentacle/plc";       // EtherNet/IP
+// import { opcuaTag } from "@tentacle/plc";      // OPC UA
+// import { modbusTag } from "@tentacle/plc";     // Modbus TCP
+//
+// Then add a \`source\` field to your variable config:
+//   source: eipTag(device, "TagName"),
+//   source: opcuaTag(device, "ns=2;s=NodeId"),
+//   source: modbusTag(device, "register_name"),
+//
+// See: https://github.com/joyautomation/tentacle-plc
+
+const log = createPlcLogger("${plc_name}");
+
+// =============================================================================
+// Variables
+// =============================================================================
+
+const variables = {
+  temperature: {
+    id: "temperature",
+    description: "Temperature sensor reading",
+    datatype: "number",
+    default: 20,
+    deadband: {
+      value: 0.5,
+      maxTime: 60000,
+    },
+  } satisfies PlcVariableNumberConfig,
+
+  isRunning: {
+    id: "isRunning",
+    description: "System running state",
+    datatype: "boolean",
+    default: false,
+    source: { bidirectional: true },
+  } satisfies PlcVariableBooleanConfig,
+};
+
+type Variables = typeof variables;
+type VariablesRuntime = PlcVariablesRuntime<Variables>;
+
+// =============================================================================
+// Tasks
+// =============================================================================
+
+const tasks = {
+  logger: {
+    name: "Logger",
+    description: "Log variable values periodically",
+    scanRate: 5000,
+    program: (vars: VariablesRuntime) => {
+      log.info(
+        \`Temperature: \${vars.temperature.value}°C | Running: \${vars.isRunning.value}\`,
+      );
+    },
+  },
+};
+
+// =============================================================================
+// Run
+// =============================================================================
+
+const plc = await createPlc({
+  projectId: "${plc_name}",
+  variables,
+  tasks,
+  nats: {
+    servers: Deno.env.get("NATS_SERVERS") || "nats://localhost:4222",
+  },
+});
+
+Deno.addSignalListener("SIGINT", async () => {
+  log.info("Shutting down...");
+  await plc.stop();
+  Deno.exit(0);
+});
+
+log.info("PLC running. Press Ctrl+C to stop.");
+log.info("Send values via NATS:");
+log.info(\`  nats pub ${plc_name}/temperature 25\`);
+log.info(\`  nats pub ${plc_name}/isRunning true\`);
+MAINEOF
+
+  echo ""
+  echo -e "  ${GREEN}${BOLD}PLC project created at ${project_dir}/${NC}"
+  echo ""
+  echo -e "  ${BOLD}Get started:${NC}"
+  echo "    cd ${project_dir}"
+  echo "    ${INSTALL_DIR}/bin/deno task dev"
+  echo ""
+  echo -e "  ${BOLD}Create more projects anytime:${NC}"
+  echo "    deno run -A jsr:@joyautomation/create-tentacle-plc <name>"
+  echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -783,6 +947,7 @@ main() {
   fi
 
   print_summary
+  setup_plc_project
 }
 
 main "$@"
