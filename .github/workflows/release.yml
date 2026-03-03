@@ -149,12 +149,6 @@ jobs:
         with:
           path: artifacts/
 
-      - name: Checkout tentacle-nats-schema
-        uses: actions/checkout@v4
-        with:
-          repository: joyautomation/tentacle-nats-schema
-          path: tentacle-nats-schema
-
       - name: Determine version
         id: version
         run: |
@@ -184,10 +178,6 @@ jobs:
             tar xzf "$WEB_TARBALL" -C services/tentacle-web/
             echo "Extracted tentacle-web"
           fi
-
-          # Shared nats-schema
-          cp -r tentacle-nats-schema services/tentacle-nats-schema
-          rm -rf services/tentacle-nats-schema/.git
 
           # Pre-cache all Deno service dependencies for air-gapped installs.
           # The runner is linux-amd64; source files are platform-independent.
@@ -253,7 +243,6 @@ jobs:
               done
             fi
             [ -d "services/tentacle-web" ]         && cp -r "services/tentacle-web"         "${DIR}/services/"
-            [ -d "services/tentacle-nats-schema" ] && cp -r "services/tentacle-nats-schema" "${DIR}/services/"
 
             # Pre-cached Deno dependency cache
             [ -d "deno-cache" ] && cp -r deno-cache "${DIR}/services/deno-cache"
