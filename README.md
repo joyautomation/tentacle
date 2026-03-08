@@ -16,13 +16,13 @@ Industrial automation platform built on [Deno](https://deno.land/) and [NATS](ht
                                                 │
                      ┌──────────────────────────┤
                      │              │           │
-              ┌──────┴──┐   ┌──────┴──┐  ┌─────┴───┐
-              │  EIP    │   │ OPC UA  │  │ Modbus  │
-              │ Scanner │   │ Client  │  │ Scanner │
-              └────┬────┘   └────┬────┘  └────┬────┘
-                   │             │            │
-            Allen-Bradley    OPC UA       Modbus TCP
-               PLCs          Servers       Devices
+              ┌──────┴──┐   ┌──────┴──┐  ┌─────┴───┐  ┌─────────┐
+              │  EIP    │   │ OPC UA  │  │ Modbus  │  │ Modbus  │
+              │ Scanner │   │ Client  │  │ Scanner │  │ Server  │
+              └────┬────┘   └────┬────┘  └────┬────┘  └────┬────┘
+                   │             │            │            │
+            Allen-Bradley    OPC UA       Modbus TCP   Modbus TCP
+               PLCs          Servers       Devices      Clients
 ```
 
 ## Install
@@ -59,6 +59,7 @@ This creates a project with example variables, tasks, and NATS integration. See 
 | [tentacle-ethernetip](https://github.com/joyautomation/tentacle-ethernetip) | Allen-Bradley PLC scanner (EtherNet/IP) | Deno |
 | [tentacle-opcua-go](https://github.com/joyautomation/tentacle-opcua-go) | OPC UA client | Go |
 | [tentacle-modbus](https://github.com/joyautomation/tentacle-modbus) | Modbus TCP scanner with block reads | Deno |
+| [tentacle-modbus-server](https://github.com/joyautomation/tentacle-modbus-server) | Modbus TCP server — exposes PLC data to Modbus clients | Deno |
 | [tentacle-mqtt](https://github.com/joyautomation/tentacle-mqtt) | NATS to MQTT bridge (Sparkplug B) | Deno |
 | [tentacle-network](https://github.com/joyautomation/tentacle-network) | Network interface monitoring (Linux) | Deno |
 | [tentacle-nftables](https://github.com/joyautomation/tentacle-nftables) | Firewall and NAT management (Linux) | Deno |
@@ -94,4 +95,4 @@ Requires NATS running locally (`docker run -d --name nats -p 4222:4222 nats -js`
 
 ## License
 
-MIT
+Apache-2.0

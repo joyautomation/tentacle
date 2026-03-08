@@ -1,0 +1,19 @@
+[Unit]
+Description=Tentacle Modbus TCP Scanner
+Documentation=https://github.com/joyautomation/tentacle
+After=tentacle-nats.service
+Requires=tentacle-nats.service
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/tentacle/config/tentacle.env
+WorkingDirectory=/opt/tentacle/services/tentacle-modbus
+ExecStart=/opt/tentacle/bin/deno run --allow-all main.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tentacle-modbus
+
+[Install]
+WantedBy=multi-user.target
