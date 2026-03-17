@@ -31,6 +31,8 @@ PLATFORM=""
 DEPLOY_METHOD=""
 SELECTED_MODULES=()
 LINUX_SYSTEM_MODULES=()
+COMMAND=""
+UPDATE_TARGET="all"
 
 # Config values (populated by configure())
 CFG_NATS_SERVERS=""
@@ -93,7 +95,10 @@ while [[ $# -gt 0 ]]; do
       SERVICES_DIR="${INSTALL_DIR}/services"
       shift 2 ;;
     --help|-h)
-      echo "Usage: install.sh [OPTIONS]"
+      echo "Usage: install.sh [OPTIONS] [COMMAND]"
+      echo ""
+      echo "Commands:"
+      echo "  update [service]  Update installed services (all, or a specific one)"
       echo ""
       echo "Options:"
       echo "  --bundled        Use bundled binaries (set by .run archive)"
@@ -101,6 +106,10 @@ while [[ $# -gt 0 ]]; do
       echo "  --install-dir    Override install directory (default: /opt/tentacle)"
       echo "  -h, --help       Show this help"
       exit 0 ;;
+    update)
+      COMMAND="update"
+      UPDATE_TARGET="${2:-all}"
+      shift; shift 2>/dev/null || true ;;
     *) shift ;;
   esac
 done
@@ -912,10 +921,121 @@ MAINEOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Update
+# ═══════════════════════════════════════════════════════════════════════════════
+
+cmd_update() {
+  local target="$1"
+
+  detect_platform
+
+  # Resolve latest version from GitHub if VERSION is still the placeholder
+  if [ "$VERSION" = "{{VERSION}}" ] || [ -z "$VERSION" ]; then
+    info "Fetching latest release version..."
+    if command -v curl &>/dev/null; then
+      VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')"
+    else
+      VERSION="$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')"
+    fi
+    [ -z "$VERSION" ] && die "Could not determine latest version. Pass --version explicitly."
+    info "Latest version: ${BOLD}${VERSION}${NC}"
+  fi
+
+  # Download release tarball
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  local url="https://github.com/${REPO}/releases/download/v${VERSION}/tentacle-v${VERSION}-${PLATFORM}.tar.gz"
+  info "Downloading tentacle v${VERSION}..."
+  if command -v curl &>/dev/null; then
+    curl -fSL --progress-bar "$url" -o "${tmpdir}/release.tar.gz"
+  else
+    wget -q --show-progress -O "${tmpdir}/release.tar.gz" "$url"
+  fi
+  tar xzf "${tmpdir}/release.tar.gz" -C "${tmpdir}" --strip-components=1
+  local src_dir="${tmpdir}"
+
+  # Detect installed services from systemd units
+  local installed_services=()
+  for unit in /etc/systemd/system/tentacle-*.service; do
+    [ -f "$unit" ] || continue
+    local svc
+    svc="$(basename "$unit" .service)"
+    installed_services+=("$svc")
+  done
+
+  if [ ${#installed_services[@]} -eq 0 ]; then
+    die "No tentacle services found in /etc/systemd/system/. Is tentacle installed?"
+  fi
+
+  # Filter to target
+  local to_update=()
+  if [ "$target" = "all" ]; then
+    to_update=("${installed_services[@]}")
+  else
+    # Accept short name (e.g. "web") or full name (e.g. "tentacle-web")
+    local full_target="$target"
+    [[ "$target" != tentacle-* ]] && full_target="tentacle-${target}"
+    local found=false
+    for svc in "${installed_services[@]}"; do
+      [ "$svc" = "$full_target" ] && { to_update+=("$svc"); found=true; break; }
+    done
+    $found || die "Service '${full_target}' is not installed."
+  fi
+
+  echo ""
+  step "Updating ${#to_update[@]} service(s) to v${VERSION}"
+  echo ""
+
+  for svc in "${to_update[@]}"; do
+    if [ "$(module_type "$svc")" = "go" ]; then
+      if [ -f "${src_dir}/bin/${svc}" ]; then
+        systemctl stop "$svc" 2>/dev/null || true
+        cp "${src_dir}/bin/${svc}" "${INSTALL_DIR}/bin/${svc}"
+        chmod +x "${INSTALL_DIR}/bin/${svc}"
+        systemctl start "$svc"
+        info "  Updated ${svc} (binary)"
+      else
+        warn "  Binary not found in release: ${svc}"
+      fi
+    else
+      if [ -d "${src_dir}/services/${svc}" ]; then
+        systemctl stop "$svc" 2>/dev/null || true
+        rm -rf "${SERVICES_DIR}/${svc}"
+        cp -r "${src_dir}/services/${svc}" "${SERVICES_DIR}/${svc}"
+        systemctl start "$svc"
+        info "  Updated ${svc} (source)"
+      else
+        warn "  Service source not found in release: ${svc}"
+      fi
+    fi
+  done
+
+  # Also update shared deno cache if present in release
+  if [ -d "${src_dir}/services/deno-cache" ]; then
+    rm -rf "${SERVICES_DIR}/deno-cache"
+    cp -r "${src_dir}/services/deno-cache" "${SERVICES_DIR}/deno-cache"
+    info "  Updated shared Deno cache"
+  fi
+
+  rm -rf "${tmpdir}"
+
+  echo ""
+  echo -e "  ${GREEN}${BOLD}Update complete — tentacle v${VERSION}${NC}"
+  echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════════════════════
 
 main() {
+  if [ "$COMMAND" = "update" ]; then
+    cmd_update "$UPDATE_TARGET"
+    return
+  fi
+
   print_banner
   detect_platform
   preflight
