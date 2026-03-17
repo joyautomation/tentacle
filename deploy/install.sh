@@ -177,7 +177,7 @@ select_modules() {
   local modules=(
     "tentacle-graphql:GraphQL API:true"
     "tentacle-web:Web Dashboard:true"
-    "tentacle-ethernetip:EtherNet/IP Scanner:false"
+    "tentacle-ethernetip-go:EtherNet/IP Scanner:false"
     "tentacle-opcua:OPC UA Client:false"
     "tentacle-mqtt:MQTT Sparkplug B Bridge:false"
   )
@@ -414,7 +414,7 @@ ENVEOF
 # Map module name → service type: "deno" or "go"
 module_type() {
   case "$1" in
-    tentacle-opcua) echo "go" ;;
+    tentacle-opcua|tentacle-ethernetip-go) echo "go" ;;
     *) echo "deno" ;;
   esac
 }
