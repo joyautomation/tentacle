@@ -7,8 +7,7 @@ Requires=tentacle-nats.service
 [Service]
 Type=simple
 EnvironmentFile=/opt/tentacle/config/tentacle.env
-WorkingDirectory=/opt/tentacle/services/tentacle-ethernetip
-ExecStart=/opt/tentacle/bin/deno run --allow-all main.ts
+ExecStart=/opt/tentacle/bin/tentacle-ethernetip
 Restart=always
 RestartSec=5
 StandardOutput=journal

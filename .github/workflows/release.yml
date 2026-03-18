@@ -85,7 +85,6 @@ jobs:
       matrix:
         module:
           - { repo: tentacle-graphql,    artifact: tentacle-graphql-src.tar.gz }
-          - { repo: tentacle-ethernetip, artifact: tentacle-ethernetip-src.tar.gz }
           - { repo: tentacle-mqtt,       artifact: tentacle-mqtt-src.tar.gz }
           - { repo: tentacle-network,    artifact: tentacle-network-src.tar.gz }
           - { repo: tentacle-nftables,   artifact: tentacle-nftables-src.tar.gz }
@@ -104,6 +103,30 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.module.repo }}-src
+          path: artifacts/*
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Download tentacle-ethernetip-go compiled binary (CGo + libplctag, Linux only)
+  # ═══════════════════════════════════════════════════════════════════════════
+  download-ethernetip:
+    strategy:
+      matrix:
+        target:
+          - { platform: linux-amd64 }
+          - { platform: linux-arm64 }
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download tentacle-ethernetip-go for ${{ matrix.target.platform }}
+        run: |
+          mkdir -p artifacts
+          FILENAME="tentacle-ethernetip-go-${{ matrix.target.platform }}"
+          curl -fSL \
+            "https://github.com/${{ env.GH_ORG }}/tentacle-ethernetip-go/releases/latest/download/${FILENAME}" \
+            -o "artifacts/${FILENAME}" || echo "WARNING: ${FILENAME} not found"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tentacle-ethernetip-${{ matrix.target.platform }}
           path: artifacts/*
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -136,7 +159,7 @@ jobs:
   # Package platform archives + Makeself .run
   # ═══════════════════════════════════════════════════════════════════════════
   package:
-    needs: [download-deno, download-nats, download-deno-services, download-opcua]
+    needs: [download-deno, download-nats, download-deno-services, download-ethernetip, download-opcua]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -164,7 +187,7 @@ jobs:
           mkdir -p services
 
           # Extract Deno service source tarballs
-          for svc in graphql ethernetip mqtt modbus modbus-server network nftables; do
+          for svc in graphql mqtt modbus modbus-server network nftables; do
             TARBALL="artifacts/tentacle-${svc}-src/tentacle-${svc}-src.tar.gz"
             if [ -f "$TARBALL" ]; then
               tar xzf "$TARBALL" -C services/
@@ -185,7 +208,7 @@ jobs:
           # On other architectures, bytecode recompiles locally (no internet needed).
           export DENO_DIR="$(pwd)/deno-cache"
           mkdir -p "$DENO_DIR"
-          for svc in graphql ethernetip mqtt modbus modbus-server network nftables; do
+          for svc in graphql mqtt modbus modbus-server network nftables; do
             if [ -f "services/tentacle-${svc}/main.ts" ]; then
               echo "Caching deps for tentacle-${svc}..."
               (cd "services/tentacle-${svc}" && deno cache main.ts 2>&1) || \
@@ -226,6 +249,15 @@ jobs:
               chmod +x "${DIR}/bin/nats-server${EXT}" 2>/dev/null || true
             fi
 
+            # EtherNet/IP Go binary (Linux only — CGo + libplctag)
+            if [ "$OS" = "linux" ]; then
+              EIP_SRC="artifacts/tentacle-ethernetip-${PLATFORM}/tentacle-ethernetip-go-${PLATFORM}"
+              if [ -f "$EIP_SRC" ]; then
+                cp "$EIP_SRC" "${DIR}/bin/tentacle-ethernetip"
+                chmod +x "${DIR}/bin/tentacle-ethernetip"
+              fi
+            fi
+
             # OPC UA Go binary
             OPCUA_SRC="artifacts/tentacle-opcua-${PLATFORM}/tentacle-opcua-${PLATFORM}${EXT}"
             if [ -f "$OPCUA_SRC" ]; then
@@ -234,7 +266,7 @@ jobs:
             fi
 
             # Deno service sources + nats-schema (platform-independent)
-            for svc in graphql ethernetip mqtt modbus modbus-server nftables; do
+            for svc in graphql mqtt modbus modbus-server nftables; do
               [ -d "services/tentacle-${svc}" ] && cp -r "services/tentacle-${svc}" "${DIR}/services/"
             done
             # network and nftables are Linux-only
