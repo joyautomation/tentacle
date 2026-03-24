@@ -313,8 +313,9 @@ jobs:
             fi
 
             # Build Makeself .run installer for Linux platforms
+            # Use workspace as TMPDIR — default /tmp is a small tmpfs on CI runners
             if [ "$OS" = "linux" ]; then
-              makeself --gzip --sha256 \
+              TMPDIR="$(pwd)" makeself --gzip --sha256 \
                 "$DIR" \
                 "dist/tentacle-v${VERSION}-${PLATFORM}.run" \
                 "Tentacle v${VERSION} Installer (Linux ${ARCH})" \
