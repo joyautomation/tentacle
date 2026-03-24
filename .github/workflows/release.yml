@@ -299,28 +299,25 @@ jobs:
               sed -i "s/{{VERSION}}/${VERSION}/g" "${DIR}/deploy/install.ps1"
             fi
 
-            # Create archive
+            # Create archive and remove source dir to free disk space
             if [ "$OS" = "windows" ]; then
               zip -r "dist/tentacle-v${VERSION}-${PLATFORM}.zip" "${DIR}"
             else
               tar czf "dist/tentacle-v${VERSION}-${PLATFORM}.tar.gz" "${DIR}"
             fi
+
+            # Keep Linux dirs for Makeself, delete others immediately
+            if [ "$OS" != "linux" ]; then
+              rm -rf "${DIR}"
+            fi
           done
 
-      - name: Free disk space before Makeself
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          # Remove non-Linux platform dirs (makeself only builds Linux .run archives)
-          rm -rf "tentacle-v${VERSION}-darwin-arm64" "tentacle-v${VERSION}-windows-amd64"
-          # Remove source artifacts no longer needed
+          # Clean up source artifacts no longer needed
           rm -rf artifacts/ services/ deno-cache/
 
       - name: Build Makeself .run archives
-        env:
-          TMPDIR: ${{ github.workspace }}/tmp
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          mkdir -p "$TMPDIR"
           sudo apt-get install -y -qq makeself
 
           for ARCH in amd64 arm64; do
@@ -332,6 +329,8 @@ jobs:
                 "dist/tentacle-v${VERSION}-${PLATFORM}.run" \
                 "Tentacle v${VERSION} Installer (Linux ${ARCH})" \
                 ./deploy/install.sh --bundled
+              # Free disk space after each .run is built
+              rm -rf "$SRC_DIR"
             fi
           done
 
