@@ -221,11 +221,15 @@ jobs:
               echo "WARNING: cache failed for tentacle-web"
           fi
 
+      - name: Install makeself
+        run: sudo apt-get install -y -qq makeself
+
       - name: Package platform archives
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p dist
 
+          # Process one platform at a time to minimize disk usage
           for PLATFORM in linux-amd64 linux-arm64 darwin-arm64 windows-amd64; do
             OS="${PLATFORM%-*}"
             ARCH="${PLATFORM#*-}"
@@ -265,7 +269,7 @@ jobs:
               chmod +x "${DIR}/bin/tentacle-opcua${EXT}" 2>/dev/null || true
             fi
 
-            # Deno service sources + nats-schema (platform-independent)
+            # Deno service sources (platform-independent)
             for svc in graphql mqtt modbus modbus-server nftables; do
               [ -d "services/tentacle-${svc}" ] && cp -r "services/tentacle-${svc}" "${DIR}/services/"
             done
@@ -275,7 +279,7 @@ jobs:
                 [ -d "services/tentacle-${svc}" ] && cp -r "services/tentacle-${svc}" "${DIR}/services/"
               done
             fi
-            [ -d "services/tentacle-web" ]         && cp -r "services/tentacle-web"         "${DIR}/services/"
+            [ -d "services/tentacle-web" ] && cp -r "services/tentacle-web" "${DIR}/services/"
 
             # Pre-cached Deno dependency cache (skip gen/ — bytecode is platform-specific and regenerates)
             if [ -d "deno-cache" ]; then
@@ -299,40 +303,30 @@ jobs:
               sed -i "s/{{VERSION}}/${VERSION}/g" "${DIR}/deploy/install.ps1"
             fi
 
-            # Create archive and remove source dir to free disk space
+            # Create archive
+            echo "=== Packaging ${PLATFORM} ==="
+            df -h . | tail -1
             if [ "$OS" = "windows" ]; then
               zip -r "dist/tentacle-v${VERSION}-${PLATFORM}.zip" "${DIR}"
             else
               tar czf "dist/tentacle-v${VERSION}-${PLATFORM}.tar.gz" "${DIR}"
             fi
 
-            # Keep Linux dirs for Makeself, delete others immediately
-            if [ "$OS" != "linux" ]; then
-              rm -rf "${DIR}"
-            fi
-          done
-
-          # Clean up source artifacts no longer needed
-          rm -rf artifacts/ services/ deno-cache/
-
-      - name: Build Makeself .run archives
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sudo apt-get install -y -qq makeself
-
-          for ARCH in amd64 arm64; do
-            PLATFORM="linux-${ARCH}"
-            SRC_DIR="tentacle-v${VERSION}-${PLATFORM}"
-            if [ -d "$SRC_DIR" ]; then
+            # Build Makeself .run installer for Linux platforms
+            if [ "$OS" = "linux" ]; then
               makeself --gzip --sha256 \
-                "$SRC_DIR" \
+                "$DIR" \
                 "dist/tentacle-v${VERSION}-${PLATFORM}.run" \
                 "Tentacle v${VERSION} Installer (Linux ${ARCH})" \
                 ./deploy/install.sh --bundled
-              # Free disk space after each .run is built
-              rm -rf "$SRC_DIR"
             fi
+
+            # Delete platform dir immediately to free disk space
+            rm -rf "${DIR}"
           done
+
+          # Clean up source artifacts
+          rm -rf artifacts/ services/ deno-cache/
 
       - name: Generate checksums
         run: |
