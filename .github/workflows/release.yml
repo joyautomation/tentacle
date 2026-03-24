@@ -277,8 +277,10 @@ jobs:
             fi
             [ -d "services/tentacle-web" ]         && cp -r "services/tentacle-web"         "${DIR}/services/"
 
-            # Pre-cached Deno dependency cache
-            [ -d "deno-cache" ] && cp -r deno-cache "${DIR}/services/deno-cache"
+            # Pre-cached Deno dependency cache (skip gen/ — bytecode is platform-specific and regenerates)
+            if [ -d "deno-cache" ]; then
+              rsync -a --exclude='gen/' deno-cache/ "${DIR}/services/deno-cache/"
+            fi
 
             # Deploy files from this repo
             cp deploy/install.sh "${DIR}/deploy/"
@@ -305,9 +307,20 @@ jobs:
             fi
           done
 
-      - name: Build Makeself .run archives
+      - name: Free disk space before Makeself
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          # Remove non-Linux platform dirs (makeself only builds Linux .run archives)
+          rm -rf "tentacle-v${VERSION}-darwin-arm64" "tentacle-v${VERSION}-windows-amd64"
+          # Remove source artifacts no longer needed
+          rm -rf artifacts/ services/ deno-cache/
+
+      - name: Build Makeself .run archives
+        env:
+          TMPDIR: ${{ github.workspace }}/tmp
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p "$TMPDIR"
           sudo apt-get install -y -qq makeself
 
           for ARCH in amd64 arm64; do
