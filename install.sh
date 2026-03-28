@@ -15,7 +15,7 @@ set -euo pipefail
 
 GH_ORG="joyautomation"
 NATS_VERSION="2.10.24"
-DENO_VERSION="2.1.4"
+DENO_VERSION="2.7.4"
 INSTALL_DIR="/opt/tentacle"
 BIN_DIR="${INSTALL_DIR}/bin"
 SERVICES_DIR="${INSTALL_DIR}/services"
