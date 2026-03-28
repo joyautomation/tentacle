@@ -5,7 +5,8 @@ set -euo pipefail
 # Tentacle Platform Installer
 #
 # Downloads and installs selected tentacle modules from GitHub releases.
-# Each module is a standalone binary — no runtime dependencies needed.
+# Go modules run as compiled binaries. Deno/TypeScript modules run via a
+# shared Deno runtime installed alongside them.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/joyautomation/tentacle/main/install.sh | bash
@@ -14,10 +15,13 @@ set -euo pipefail
 
 GH_ORG="joyautomation"
 NATS_VERSION="2.10.24"
+DENO_VERSION="2.1.4"
 INSTALL_DIR="/opt/tentacle"
 BIN_DIR="${INSTALL_DIR}/bin"
+SERVICES_DIR="${INSTALL_DIR}/services"
 CONFIG_DIR="${INSTALL_DIR}/config"
 DATA_DIR="${INSTALL_DIR}/data"
+CACHE_DIR="${INSTALL_DIR}/cache"
 SYSTEMD_DIR="/etc/systemd/system"
 ENV_FILE="${CONFIG_DIR}/tentacle.env"
 
@@ -31,22 +35,28 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # ─── Module Registry ──────────────────────────────────────────────────────────
-# Each module: repo name, binary asset name, description, whether it's core
-# Format: "repo|asset|description|core"
-# Core modules are always installed and not shown in the picker.
+# Format: "repo|asset|description|core/optional|runtime"
+#
+# Runtimes:
+#   binary   — standalone binary (NATS)
+#   go       — compiled Go binary, release asset: {asset}-linux-{ARCH}
+#   deno     — Deno/TS source tarball, release asset: {repo}-src.tar.gz
+#   deno-web — Deno/SvelteKit build tarball, release asset: {repo}-build.tar.gz
 
 MODULES=(
-  "nats-server|nats|NATS message broker (JetStream)|core"
-  "tentacle-graphql|tentacle-graphql|GraphQL API gateway|core"
-  "tentacle-web|tentacle-web|Web dashboard|core"
-  "tentacle-ethernetip-go|tentacle-ethernetip|EtherNet/IP scanner (Allen-Bradley, etc.)|optional"
-  "tentacle-opcua-go|tentacle-opcua|OPC UA client|optional"
-  "tentacle-snmp|tentacle-snmp|SNMP scanner & trap listener|optional"
-  "tentacle-mqtt|tentacle-mqtt|MQTT Sparkplug B bridge|optional"
-  "tentacle-modbus|tentacle-modbus|Modbus TCP scanner|optional"
-  "tentacle-modbus-server|tentacle-modbus-server|Modbus TCP server|optional"
-  "tentacle-network|tentacle-network|Network interface manager|optional"
-  "tentacle-nftables|tentacle-nftables|Firewall manager|optional"
+  "nats-server|nats|NATS message broker (JetStream)|core|binary"
+  "tentacle-graphql|tentacle-graphql|GraphQL API gateway|core|deno"
+  "tentacle-web|tentacle-web|Web dashboard|core|deno-web"
+  "tentacle-orchestrator|tentacle-orchestrator|Service orchestrator|core|deno"
+  "tentacle-ethernetip-go|tentacle-ethernetip|EtherNet/IP scanner (Allen-Bradley, etc.)|optional|go"
+  "tentacle-opcua-go|tentacle-opcua|OPC UA client|optional|go"
+  "tentacle-snmp|tentacle-snmp|SNMP scanner & trap listener|optional|go"
+  "tentacle-mqtt|tentacle-mqtt|MQTT Sparkplug B bridge|optional|deno"
+  "tentacle-history|tentacle-history|Edge historian (TimescaleDB)|optional|deno"
+  "tentacle-modbus|tentacle-modbus|Modbus TCP scanner|optional|deno"
+  "tentacle-modbus-server|tentacle-modbus-server|Modbus TCP server|optional|deno"
+  "tentacle-network|tentacle-network|Network interface manager|optional|deno"
+  "tentacle-nftables|tentacle-nftables|Firewall manager|optional|deno"
 )
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -77,8 +87,9 @@ check_platform() {
   arch="$(uname -m)"
   [ "$os" = "linux" ] || die "Only Linux is supported (detected: $os)"
   case "$arch" in
-    x86_64|amd64) ARCH="amd64" ;;
-    *) die "Unsupported architecture: $arch (only amd64 is currently supported)" ;;
+    x86_64|amd64)  ARCH="amd64"; DENO_ARCH="x86_64" ;;
+    aarch64|arm64) ARCH="arm64"; DENO_ARCH="aarch64" ;;
+    *) die "Unsupported architecture: $arch" ;;
   esac
 }
 
@@ -96,11 +107,31 @@ download() {
 get_module_field() {
   local entry="$1" field="$2"
   case "$field" in
-    repo)  echo "$entry" | cut -d'|' -f1 ;;
-    asset) echo "$entry" | cut -d'|' -f2 ;;
-    desc)  echo "$entry" | cut -d'|' -f3 ;;
-    type)  echo "$entry" | cut -d'|' -f4 ;;
+    repo)    echo "$entry" | cut -d'|' -f1 ;;
+    asset)   echo "$entry" | cut -d'|' -f2 ;;
+    desc)    echo "$entry" | cut -d'|' -f3 ;;
+    type)    echo "$entry" | cut -d'|' -f4 ;;
+    runtime) echo "$entry" | cut -d'|' -f5 ;;
   esac
+}
+
+needs_deno() {
+  # Check if any installed/selected module requires the Deno runtime
+  for entry in "${MODULES[@]}"; do
+    local asset type runtime
+    asset=$(get_module_field "$entry" "asset")
+    type=$(get_module_field "$entry" "type")
+    runtime=$(get_module_field "$entry" "runtime")
+    if [[ "$runtime" == deno* ]]; then
+      if [ "$type" = "core" ]; then
+        return 0
+      fi
+      for sel in "${SELECTED_MODULES[@]}"; do
+        [ "$sel" = "$asset" ] && return 0
+      done
+    fi
+  done
+  return 1
 }
 
 # ─── Module Selection ─────────────────────────────────────────────────────────
@@ -127,22 +158,24 @@ select_modules() {
 
   echo -e "  ${DIM}Core modules (always installed):${NC}"
   for entry in "${MODULES[@]}"; do
-    local type desc asset
+    local type desc asset runtime
     type=$(get_module_field "$entry" "type")
     if [ "$type" = "core" ]; then
       desc=$(get_module_field "$entry" "desc")
       asset=$(get_module_field "$entry" "asset")
-      echo -e "    ${GREEN}✓${NC} ${asset} — ${desc}"
+      runtime=$(get_module_field "$entry" "runtime")
+      echo -e "    ${GREEN}✓${NC} ${asset} — ${desc} ${DIM}[${runtime}]${NC}"
     fi
   done
   echo ""
 
   echo -e "  ${BOLD}Optional modules:${NC}"
   for i in "${!optional_modules[@]}"; do
-    local desc asset
+    local desc asset runtime
     desc=$(get_module_field "${optional_modules[$i]}" "desc")
     asset=$(get_module_field "${optional_modules[$i]}" "asset")
-    echo -e "    ${CYAN}$((i + 1))${NC}) ${asset} — ${desc}"
+    runtime=$(get_module_field "${optional_modules[$i]}" "runtime")
+    echo -e "    ${CYAN}$((i + 1))${NC}) ${asset} — ${desc} ${DIM}[${runtime}]${NC}"
   done
   echo ""
 
@@ -175,6 +208,20 @@ select_modules() {
   info "Will install: core modules + ${SELECTED_MODULES[*]:-none}"
 }
 
+# ─── Install Deno Runtime ────────────────────────────────────────────────────
+
+install_deno() {
+  step "Installing Deno v${DENO_VERSION}..."
+  local url="https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-${DENO_ARCH}-unknown-linux-gnu.zip"
+  local tmp
+  tmp=$(mktemp -d)
+  download "$url" "${tmp}/deno.zip"
+  unzip -q -o "${tmp}/deno.zip" -d "${tmp}"
+  install -m 755 "${tmp}/deno" "${BIN_DIR}/deno"
+  rm -rf "$tmp"
+  info "Deno ${DENO_VERSION} installed → ${BIN_DIR}/deno"
+}
+
 # ─── Install NATS ─────────────────────────────────────────────────────────────
 
 install_nats() {
@@ -189,26 +236,90 @@ install_nats() {
   info "NATS server installed"
 }
 
-# ─── Install Module ───────────────────────────────────────────────────────────
+# ─── Install Go Module ───────────────────────────────────────────────────────
 
-install_module() {
+install_go_module() {
   local repo="$1" asset="$2"
-  step "Installing ${asset}..."
+  step "Installing ${asset} (Go binary)..."
 
-  local url
-  url="https://github.com/${GH_ORG}/${repo}/releases/latest/download/${asset}"
+  local url="https://github.com/${GH_ORG}/${repo}/releases/latest/download/${asset}-linux-${ARCH}"
   download "$url" "${BIN_DIR}/${asset}"
   chmod +x "${BIN_DIR}/${asset}"
-  info "${asset} installed"
+  info "${asset} installed → ${BIN_DIR}/${asset}"
+}
+
+# ─── Install Deno Module ─────────────────────────────────────────────────────
+
+install_deno_module() {
+  local repo="$1" asset="$2" tarball_suffix="$3"
+  step "Installing ${asset} (Deno service)..."
+
+  local url="https://github.com/${GH_ORG}/${repo}/releases/latest/download/${repo}-${tarball_suffix}.tar.gz"
+  local tmp
+  tmp=$(mktemp -d)
+  download "$url" "${tmp}/pkg.tar.gz"
+  tar xzf "${tmp}/pkg.tar.gz" -C "${tmp}"
+
+  # Remove old version if present
+  rm -rf "${SERVICES_DIR:?}/${repo}"
+
+  # Source tarballs contain repo-name/ dir; build tarballs contain build/ dir
+  if [ -d "${tmp}/${repo}" ]; then
+    mv "${tmp}/${repo}" "${SERVICES_DIR}/${repo}"
+  elif [ -d "${tmp}/build" ]; then
+    mkdir -p "${SERVICES_DIR}/${repo}"
+    mv "${tmp}/build" "${SERVICES_DIR}/${repo}/build"
+  else
+    die "Unexpected tarball layout for ${repo}"
+  fi
+  rm -rf "$tmp"
+
+  # Pre-cache Deno dependencies
+  if [ -f "${SERVICES_DIR}/${repo}/deno.json" ]; then
+    step "Caching dependencies for ${asset}..."
+    DENO_DIR="${CACHE_DIR}/deno" "${BIN_DIR}/deno" install \
+      --entrypoint "${SERVICES_DIR}/${repo}/main.ts" 2>/dev/null || true
+  fi
+
+  info "${asset} installed → ${SERVICES_DIR}/${repo}/"
+}
+
+# ─── Install Module (dispatcher) ─────────────────────────────────────────────
+
+install_module() {
+  local repo="$1" asset="$2" runtime="$3"
+
+  case "$runtime" in
+    go)
+      install_go_module "$repo" "$asset"
+      ;;
+    deno)
+      install_deno_module "$repo" "$asset" "src"
+      ;;
+    deno-web)
+      install_deno_module "$repo" "$asset" "build"
+      ;;
+    *)
+      die "Unknown runtime: $runtime for $asset"
+      ;;
+  esac
 }
 
 # ─── Systemd Units ────────────────────────────────────────────────────────────
 
 install_systemd_unit() {
-  local name="$1"
-  local extra_env="${2:-}"
+  local name="$1" runtime="$2" repo="$3"
+  local extra_env="${4:-}"
 
-  local unit_file="${SYSTEMD_DIR}/tentacle-${name}.service"
+  # For NATS, name="nats" so unit is "tentacle-nats"; for others, name already
+  # includes "tentacle-" prefix (e.g. "tentacle-graphql").
+  local unit_name
+  if [ "$name" = "nats" ]; then
+    unit_name="tentacle-nats"
+  else
+    unit_name="$name"
+  fi
+  local unit_file="${SYSTEMD_DIR}/${unit_name}.service"
 
   # Special case for NATS
   if [ "$name" = "nats" ]; then
@@ -234,12 +345,26 @@ UNIT
     return
   fi
 
-  # All other modules are standalone binaries
   local after="tentacle-nats.service"
   local requires="tentacle-nats.service"
   if [ "$name" = "tentacle-web" ]; then
     after="tentacle-graphql.service"
   fi
+
+  local exec_start working_dir=""
+  case "$runtime" in
+    go)
+      exec_start="${BIN_DIR}/${name}"
+      ;;
+    deno)
+      exec_start="${BIN_DIR}/deno run -A main.ts"
+      working_dir="${SERVICES_DIR}/${repo}"
+      ;;
+    deno-web)
+      exec_start="${BIN_DIR}/deno run -A build/index.js"
+      working_dir="${SERVICES_DIR}/${repo}"
+      ;;
+  esac
 
   cat > "$unit_file" <<UNIT
 [Unit]
@@ -249,9 +374,11 @@ Requires=${requires}
 
 [Service]
 Type=simple
-EnvironmentFile=${ENV_FILE}${extra_env:+
-Environment=${extra_env}}
-ExecStart=${BIN_DIR}/${name}
+EnvironmentFile=${ENV_FILE}
+Environment=DENO_DIR=${CACHE_DIR}/deno${extra_env:+
+Environment=${extra_env}}${working_dir:+
+WorkingDirectory=${working_dir}}
+ExecStart=${exec_start}
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -322,38 +449,45 @@ do_install() {
   fi
 
   # Create directories
-  mkdir -p "${BIN_DIR}" "${CONFIG_DIR}" "${DATA_DIR}/nats"
+  mkdir -p "${BIN_DIR}" "${SERVICES_DIR}" "${CONFIG_DIR}" "${DATA_DIR}/nats" "${CACHE_DIR}/deno"
 
   # Install config
   install_config
 
+  # Install Deno runtime if any Deno modules are selected
+  if needs_deno; then
+    install_deno
+  fi
+
   # Install core: NATS
   install_nats
-  install_systemd_unit "nats"
+  install_systemd_unit "nats" "binary" ""
 
   # Install core: graphql, web
   for entry in "${MODULES[@]}"; do
-    local repo asset type
+    local repo asset type runtime
     repo=$(get_module_field "$entry" "repo")
     asset=$(get_module_field "$entry" "asset")
     type=$(get_module_field "$entry" "type")
+    runtime=$(get_module_field "$entry" "runtime")
     [ "$type" = "core" ] || continue
     [ "$asset" = "nats" ] && continue  # already installed above
-    install_module "$repo" "$asset"
-    install_systemd_unit "$asset"
+    install_module "$repo" "$asset" "$runtime"
+    install_systemd_unit "$asset" "$runtime" "$repo"
   done
 
   # Install selected optional modules
   for asset_name in "${SELECTED_MODULES[@]}"; do
     for entry in "${MODULES[@]}"; do
-      local repo asset
+      local repo asset runtime
       repo=$(get_module_field "$entry" "repo")
       asset=$(get_module_field "$entry" "asset")
+      runtime=$(get_module_field "$entry" "runtime")
       if [ "$asset" = "$asset_name" ]; then
-        install_module "$repo" "$asset"
+        install_module "$repo" "$asset" "$runtime"
         local extra_env=""
         [ "$asset" = "tentacle-opcua" ] && extra_env="OPCUA_PKI_DIR=${DATA_DIR}/opcua/pki"
-        install_systemd_unit "$asset" "$extra_env"
+        install_systemd_unit "$asset" "$runtime" "$repo" "$extra_env"
         break
       fi
     done
@@ -370,14 +504,12 @@ do_install() {
     asset=$(get_module_field "$entry" "asset")
     type=$(get_module_field "$entry" "type")
     if [ "$type" = "core" ] && [ "$asset" != "nats" ]; then
-      systemctl enable "tentacle-${asset}.service" 2>/dev/null || \
-        systemctl enable "${asset}.service" 2>/dev/null || true
+      systemctl enable "${asset}.service" 2>/dev/null || true
     fi
   done
 
   for asset_name in "${SELECTED_MODULES[@]}"; do
-    systemctl enable "${asset_name}.service" 2>/dev/null || \
-      systemctl enable "tentacle-${asset_name}.service" 2>/dev/null || true
+    systemctl enable "${asset_name}.service" 2>/dev/null || true
   done
 
   if confirm "Start all services now?"; then
@@ -401,7 +533,9 @@ do_install() {
   echo -e "${BOLD}${GREEN}Installation complete!${NC}"
   echo ""
   echo -e "  Config:     ${ENV_FILE}"
-  echo -e "  Binaries:   ${BIN_DIR}/"
+  echo -e "  Go bins:    ${BIN_DIR}/"
+  echo -e "  Deno svcs:  ${SERVICES_DIR}/"
+  echo -e "  Deno:       ${BIN_DIR}/deno"
   echo -e "  Data:       ${DATA_DIR}/"
   echo -e "  Dashboard:  http://localhost:3012"
   echo -e "  GraphQL:    http://localhost:4000/graphql"
@@ -418,23 +552,50 @@ do_update() {
 
   step "Updating installed modules..."
 
-  # Find installed modules by checking binaries in BIN_DIR
   local updated=0
+
+  # Update Deno runtime if any Deno services are installed
+  local has_deno_svc=false
   for entry in "${MODULES[@]}"; do
-    local repo asset type
+    local repo runtime
+    repo=$(get_module_field "$entry" "repo")
+    runtime=$(get_module_field "$entry" "runtime")
+    if [[ "$runtime" == deno* ]] && [ -d "${SERVICES_DIR}/${repo}" ]; then
+      has_deno_svc=true
+      break
+    fi
+  done
+  if [ "$has_deno_svc" = "true" ] && [ -f "${BIN_DIR}/deno" ]; then
+    install_deno
+  fi
+
+  # Update each installed module
+  for entry in "${MODULES[@]}"; do
+    local repo asset type runtime
     repo=$(get_module_field "$entry" "repo")
     asset=$(get_module_field "$entry" "asset")
     type=$(get_module_field "$entry" "type")
+    runtime=$(get_module_field "$entry" "runtime")
 
     if [ "$asset" = "nats" ]; then
       if [ -f "${BIN_DIR}/nats-server" ]; then
         install_nats
         updated=$((updated + 1))
       fi
-    elif [ -f "${BIN_DIR}/${asset}" ]; then
+      continue
+    fi
+
+    # Check if module is installed
+    local is_installed=false
+    case "$runtime" in
+      go)       [ -f "${BIN_DIR}/${asset}" ] && is_installed=true ;;
+      deno*)    [ -d "${SERVICES_DIR}/${repo}" ] && is_installed=true ;;
+    esac
+
+    if [ "$is_installed" = "true" ]; then
       local service_name="${asset}"
       systemctl stop "${service_name}.service" 2>/dev/null || true
-      install_module "$repo" "$asset"
+      install_module "$repo" "$asset" "$runtime"
       systemctl start "${service_name}.service" 2>/dev/null || true
       updated=$((updated + 1))
     fi
@@ -449,19 +610,36 @@ do_status() {
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
 
-  printf "  %-25s %-12s %s\n" "MODULE" "INSTALLED" "STATUS"
-  echo "  ─────────────────────────────────────────────────"
+  # Show Deno version if installed
+  if [ -f "${BIN_DIR}/deno" ]; then
+    local deno_ver
+    deno_ver=$("${BIN_DIR}/deno" --version 2>/dev/null | head -1 || echo "unknown")
+    echo -e "  Deno: ${GREEN}${deno_ver}${NC}"
+  else
+    echo -e "  Deno: ${DIM}not installed${NC}"
+  fi
+  echo ""
+
+  printf "  %-25s %-10s %-12s %s\n" "MODULE" "RUNTIME" "INSTALLED" "STATUS"
+  echo "  ──────────────────────────────────────────────────────────────"
 
   for entry in "${MODULES[@]}"; do
-    local asset type installed status
+    local asset type runtime installed status
     asset=$(get_module_field "$entry" "asset")
     type=$(get_module_field "$entry" "type")
+    runtime=$(get_module_field "$entry" "runtime")
+    local repo
+    repo=$(get_module_field "$entry" "repo")
 
+    # Check installed
     if [ "$asset" = "nats" ]; then
       [ -f "${BIN_DIR}/nats-server" ] && installed="${GREEN}yes${NC}" || installed="${DIM}no${NC}"
       status=$(systemctl is-active tentacle-nats.service 2>/dev/null || echo "—")
-    else
+    elif [ "$runtime" = "go" ]; then
       [ -f "${BIN_DIR}/${asset}" ] && installed="${GREEN}yes${NC}" || installed="${DIM}no${NC}"
+      status=$(systemctl is-active "${asset}.service" 2>/dev/null || echo "—")
+    else
+      [ -d "${SERVICES_DIR}/${repo}" ] && installed="${GREEN}yes${NC}" || installed="${DIM}no${NC}"
       status=$(systemctl is-active "${asset}.service" 2>/dev/null || echo "—")
     fi
 
@@ -471,9 +649,9 @@ do_status() {
       failed)   status="${RED}${status}${NC}" ;;
     esac
 
-    printf "  %-25s " "$asset"
+    printf "  %-25s %-10s " "$asset" "$runtime"
     echo -en "$installed"
-    printf "%*s" $((12 - ${#asset} + ${#asset})) ""
+    printf "          "
     echo -e "$status"
   done
   echo ""
