@@ -47,7 +47,7 @@ MODULES=(
   "nats-server|nats|NATS message broker (JetStream)|core|binary"
   "tentacle-graphql|tentacle-graphql|GraphQL API gateway|core|deno"
   "tentacle-web|tentacle-web|Web dashboard|core|deno-web"
-  "tentacle-orchestrator|tentacle-orchestrator|Service orchestrator|core|deno"
+  "tentacle-orchestrator-go|tentacle-orchestrator|Service orchestrator|core|go"
   "tentacle-ethernetip-go|tentacle-ethernetip|EtherNet/IP scanner (Allen-Bradley, etc.)|optional|go"
   "tentacle-opcua-go|tentacle-opcua|OPC UA client|optional|go"
   "tentacle-snmp|tentacle-snmp|SNMP scanner & trap listener|optional|go"
@@ -91,6 +91,83 @@ check_platform() {
     aarch64|arm64) ARCH="arm64"; DENO_ARCH="aarch64" ;;
     *) die "Unsupported architecture: $arch" ;;
   esac
+}
+
+check_and_install_utilities() {
+  step "Checking system utilities..."
+
+  # Detect package manager
+  local pkg_manager install_cmd
+  if command -v apt-get &>/dev/null; then
+    pkg_manager="apt"
+    install_cmd="apt-get update && apt-get install -y"
+  elif command -v yum &>/dev/null; then
+    pkg_manager="yum"
+    install_cmd="yum install -y"
+  elif command -v dnf &>/dev/null; then
+    pkg_manager="dnf"
+    install_cmd="dnf install -y"
+  elif command -v pacman &>/dev/null; then
+    pkg_manager="pacman"
+    install_cmd="pacman -S --noconfirm"
+  elif command -v apk &>/dev/null; then
+    pkg_manager="apk"
+    install_cmd="apk add"
+  else
+    warn "Unknown package manager; skipping utility installation"
+    return 0
+  fi
+
+  # List of required utilities and their package names (format: "binary|apt|yum|dnf|pacman|apk")
+  local utilities=(
+    "curl|curl|curl|curl|curl|curl"
+    "unzip|unzip|unzip|unzip|unzip|unzip"
+    "tar|tar|tar|tar|tar|tar"
+    "sed|sed|sed|sed|sed|sed"
+    "awk|gawk|gawk|gawk|gawk|gawk"
+    "gzip|gzip|gzip|gzip|gzip|gzip"
+  )
+
+  local missing=()
+  for util in "${utilities[@]}"; do
+    local binary
+    binary=$(echo "$util" | cut -d'|' -f1)
+    if ! command -v "$binary" &>/dev/null; then
+      missing+=("$binary")
+    fi
+  done
+
+  if [ ${#missing[@]} -eq 0 ]; then
+    info "All required utilities found"
+    return 0
+  fi
+
+  # Map missing binaries to package names based on detected package manager
+  local packages=()
+  for binary in "${missing[@]}"; do
+    for util in "${utilities[@]}"; do
+      local bin pkg_apt pkg_yum pkg_dnf pkg_pacman pkg_apk
+      IFS='|' read -r bin pkg_apt pkg_yum pkg_dnf pkg_pacman pkg_apk <<< "$util"
+      if [ "$bin" = "$binary" ]; then
+        case "$pkg_manager" in
+          apt)     packages+=("$pkg_apt") ;;
+          yum)     packages+=("$pkg_yum") ;;
+          dnf)     packages+=("$pkg_dnf") ;;
+          pacman)  packages+=("$pkg_pacman") ;;
+          apk)     packages+=("$pkg_apk") ;;
+        esac
+        break
+      fi
+    done
+  done
+
+  warn "Installing missing utilities: ${missing[*]}"
+  step "Running: $install_cmd ${packages[*]}"
+  if eval "$install_cmd" "${packages[@]}" 2>/dev/null; then
+    info "Utilities installed successfully"
+  else
+    warn "Failed to install some utilities; attempting to continue"
+  fi
 }
 
 download() {
@@ -435,6 +512,7 @@ CONFIG
 do_install() {
   check_root
   check_platform
+  check_and_install_utilities
 
   echo ""
   echo -e "${BOLD}Tentacle Platform Installer${NC}"
@@ -549,6 +627,7 @@ do_install() {
 do_update() {
   check_root
   check_platform
+  check_and_install_utilities
 
   step "Updating installed modules..."
 
