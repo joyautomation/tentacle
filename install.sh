@@ -51,6 +51,7 @@ MODULES=(
   "tentacle-ethernetip-go|tentacle-ethernetip|EtherNet/IP scanner (Allen-Bradley, etc.)|optional|go"
   "tentacle-opcua-go|tentacle-opcua|OPC UA client|optional|go"
   "tentacle-snmp|tentacle-snmp|SNMP scanner & trap listener|optional|go"
+  "tentacle-gateway-go|tentacle-gateway|Device gateway (RBE, UDT)|optional|go"
   "tentacle-mqtt|tentacle-mqtt|MQTT Sparkplug B bridge|optional|deno"
   "tentacle-history|tentacle-history|Edge historian (TimescaleDB)|optional|deno"
   "tentacle-modbus|tentacle-modbus|Modbus TCP scanner|optional|deno"
